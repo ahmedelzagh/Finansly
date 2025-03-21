@@ -8,6 +8,8 @@ Finansly is a Python-based financial summary tool that helps users track their w
 - Fetches the official USD to EGP exchange rate.
 - Calculates the total value of gold holdings and USD balance in EGP.
 - Saves the financial summary to an Excel file.
+- Web interface to input data and view financial summaries.
+- Ability to delete specific entries from the financial summary.
 
 ## Requirements
 
@@ -15,6 +17,8 @@ Finansly is a Python-based financial summary tool that helps users track their w
 - `requests` library
 - `openpyxl` library
 - `python-dotenv` library
+- `flask` library
+- `flask-session` library
 
 ## Installation
 
@@ -28,7 +32,7 @@ Finansly is a Python-based financial summary tool that helps users track their w
 2. Install the required libraries:
 
    ```sh
-   pip install requests openpyxl python-dotenv
+   pip install requests openpyxl python-dotenv flask flask-session
    ```
 
 3. Create a `.env` file in the project directory and add your Gold API key:
@@ -38,17 +42,19 @@ Finansly is a Python-based financial summary tool that helps users track their w
 
 ## Usage
 
-1. Run the script:
+1. Run the Flask web application:
 
    ```sh
-   python main.py
+   python app.py
    ```
 
-2. Enter your gold holdings (in grams) and USD balance when prompted.
+2. Open your web browser and go to `http://127.0.0.1:5000`.
 
-3. The script will fetch the latest gold price and USD to EGP exchange rate, calculate the total values, and display the financial summary.
+3. Enter your gold holdings (in grams) and USD balance in the form and submit.
 
-4. The financial summary will be saved to an Excel file named `financial_summary.xlsx` in the project directory.
+4. The application will fetch the latest gold price and USD to EGP exchange rate, calculate the total values, and display the financial summary.
+
+5. The financial summary will be saved to an Excel file named `financial_summary.xlsx` in the project directory.
 
 ## Example
 

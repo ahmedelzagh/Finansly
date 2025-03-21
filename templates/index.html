@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Financial Summary</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
+    <style>
+      body {
+        background-color: #121212;
+        color: #ffffff;
+        margin-bottom: 50px;
+      }
+      .input-field input[type=number] {
+        color: #ffffff;
+      }
+      .input-field label {
+        color: #b0bec5;
+      }
+      .input-field input[type=number]:focus + label {
+        color: #ffab40;
+      }
+      .input-field input[type=number]:focus {
+        border-bottom: 1px solid #ffab40;
+        box-shadow: 0 1px 0 0 #ffab40;
+      }
+      .btn {
+        background-color: #ffab40;
+      }
+      .btn:hover {
+        background-color: #ff9100;
+      }
+      .table-container {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        min-width: 600px; /* Adjust as needed */
+        color: #ffffff;
+      }
+      th, td {
+        border: 1px solid #ffffff;
+      }
+      .delete-btn {
+        background-color: #ff5252;
+        color: #ffffff;
+        border: none;
+        border-radius: 4px;
+        padding: 8px 16px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+      .delete-btn:hover {
+        background-color: #ff1744;
+      }
+    </style>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        // Retrieve stored values from local storage
+        const goldHoldings = localStorage.getItem("gold_holdings");
+        const usdBalance = localStorage.getItem("usd_balance");
+
+        if (goldHoldings) {
+          document.getElementById("gold_holdings").value = goldHoldings;
+        }
+        if (usdBalance) {
+          document.getElementById("usd_balance").value = usdBalance;
+        }
+
+        // Store values in local storage on form submit
+        document.querySelector("form").addEventListener("submit", function () {
+          const goldHoldingsValue = document.getElementById("gold_holdings").value;
+          const usdBalanceValue = document.getElementById("usd_balance").value;
+
+          localStorage.setItem("gold_holdings", goldHoldingsValue);
+          localStorage.setItem("usd_balance", usdBalanceValue);
+        });
+      });
+      function deleteEntry(timestamp) {
+        fetch(`/delete/${timestamp}`, {
+          method: 'DELETE'
+        }).then(response => {
+          if (response.ok) {
+            window.location.reload();
+          } else {
+            alert('Failed to delete entry');
+          }
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Financial Summary</h1>
+      <form method="POST">
+        <div class="input-field">
+          <input type="number" step="0.01" id="gold_holdings" name="gold_holdings" required />
+          <label for="gold_holdings">Gold Holdings (grams):</label>
+        </div>
+        <div class="input-field">
+          <input type="number" step="0.01" id="usd_balance" name="usd_balance" required />
+          <label for="usd_balance">USD Balance:</label>
+        </div>
+        <button type="submit" class="btn">Submit</button>
+      </form>
+
+      {% if session.gold_holdings %}
+      <h2>Current Session Data</h2>
+      <p>Gold Holdings: {{ session.gold_holdings }} grams</p>
+      <p>USD Balance: {{ session.usd_balance }} USD</p>
+      <p>Gold Price (EGP/gm): {{ session.gold_price_per_gram }}</p>
+      <p>Official USD Rate: {{ session.official_usd_rate }}</p>
+      <p>Total Gold Value (EGP): {{ session.total_gold_value_egp }}</p>
+      <p>Total USD Value (EGP): {{ session.total_usd_value_egp }}</p>
+      <p>Total Wealth (EGP): {{ session.total_wealth_egp }}</p>
+      {% endif %}
+
+      <h2>Previous Data</h2>
+      <div class="table-container">
+        <table class="striped">
+          <thead>
+            <tr>
+              {% for header in headers %}
+              <th>{{ header }}</th>
+              {% endfor %}
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in data %}
+            <tr>
+              {% for cell in row %}
+              <td>{{ cell }}</td>
+              {% endfor %}
+              <td>
+                <button class="delete-btn" onclick="deleteEntry('{{ row[0] }}')">Delete</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+  </body>
+</html>
