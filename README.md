@@ -25,7 +25,7 @@ Finansly is a Python-based financial summary tool that helps users track their w
 1. Clone the repository:
 
    ```sh
-   git clone https://github.com/yourusername/Finansly.git
+   git clone https://github.com/ahmedelzagh/Finansly.git
    cd Finansly
    ```
 
