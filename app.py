@@ -37,8 +37,8 @@ def index():
 
             return redirect(url_for("index"))
 
+    headers = ["Timestamp", "Gold Holdings (grams)", "USD Balance", "Gold Price (EGP/gm)", "Official USD Rate", "Total Gold Value (EGP)", "Total USD Value (EGP)", "Total Wealth (EGP)"]
     data = []
-    headers = []
     file_path = "financial_summary.xlsx"
     if os.path.exists(file_path):
         workbook = load_workbook(file_path)
