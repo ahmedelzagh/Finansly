@@ -100,18 +100,100 @@ def get_official_usd_rate():
         return None
 
 # Function to save data to Excel
-def save_to_excel(date, gold_holdings, usd_balance, gold_price_per_gram, official_usd_rate, total_gold_value_egp, total_usd_value_egp, total_wealth_egp):
+def save_to_excel(timestamp, gold_holdings_24k, gold_holdings_21k, usd_balance, gold_price_24k, gold_price_21k, official_usd_rate, total_gold_value_egp, total_usd_value_egp, total_wealth_egp):
+    """
+    Saves financial data to Excel file with new format (10 columns).
+    If file exists with old format, updates headers to new format.
+    """
     file_path = "financial_summary.xlsx"
+    
     if os.path.exists(file_path):
         workbook = load_workbook(file_path)
         sheet = workbook.active
+        # Check if headers need to be updated (old format detection)
+        existing_headers = [cell.value for cell in sheet[1]]
+        if len(existing_headers) == 8 and existing_headers == OLD_FORMAT_HEADERS:
+            # Update headers to new format
+            for col_idx, new_header in enumerate(NEW_FORMAT_HEADERS, start=1):
+                sheet.cell(row=1, column=col_idx, value=new_header)
     else:
         workbook = Workbook()
         sheet = workbook.active
-        sheet.append(["Date", "Gold Holdings (grams)", "USD Balance", "Gold Price (EGP/gm)", "Official USD Rate", "Total Gold Value (EGP)", "Total USD Value (EGP)", "Total Wealth (EGP)"])
+        sheet.append(NEW_FORMAT_HEADERS)
 
-    sheet.append([date, gold_holdings, usd_balance, gold_price_per_gram, official_usd_rate, total_gold_value_egp, total_usd_value_egp, total_wealth_egp])
+    # Append new row with all 10 columns
+    sheet.append([
+        timestamp,
+        gold_holdings_24k if gold_holdings_24k is not None else None,
+        gold_holdings_21k if gold_holdings_21k is not None else None,
+        usd_balance,
+        gold_price_24k if gold_price_24k is not None else None,
+        gold_price_21k if gold_price_21k is not None else None,
+        official_usd_rate,
+        total_gold_value_egp,
+        total_usd_value_egp,
+        total_wealth_egp
+    ])
     workbook.save(file_path)
+
+# Function to detect Excel file format (old or new)
+def detect_excel_format(file_path):
+    """
+    Detects whether Excel file uses old format (8 columns) or new format (10 columns).
+    Returns 'old' or 'new'.
+    """
+    if not os.path.exists(file_path):
+        return 'new'  # Default to new format for new files
+    
+    workbook = load_workbook(file_path)
+    sheet = workbook.active
+    headers = [cell.value for cell in sheet[1]]
+    
+    if len(headers) == 8:
+        return 'old'
+    elif len(headers) == 10:
+        return 'new'
+    else:
+        # Unknown format, default to new
+        return 'new'
+
+# Function to normalize old format row to new format
+def normalize_row_to_new_format(row, headers):
+    """
+    Converts a row from old format (8 columns) to new format (10 columns).
+    Returns a dictionary with column names as keys.
+    """
+    if len(headers) == 8 and len(row) == 8:
+        # Old format detected
+        return {
+            COL_TIMESTAMP: row[0],  # Date -> Timestamp
+            COL_GOLD_24K_HOLDINGS: row[1],  # Gold Holdings (grams) -> Gold Holdings 24k (grams)
+            COL_GOLD_21K_HOLDINGS: None,  # Not in old format
+            COL_USD_BALANCE: row[2],
+            COL_GOLD_24K_PRICE: row[3],  # Gold Price (EGP/gm) -> Gold Price 24k (EGP/gm)
+            COL_GOLD_21K_PRICE: None,  # Not in old format
+            COL_OFFICIAL_USD_RATE: row[4],
+            COL_TOTAL_GOLD_VALUE: row[5],
+            COL_TOTAL_USD_VALUE: row[6],
+            COL_TOTAL_WEALTH: row[7]
+        }
+    elif len(headers) == 10 and len(row) == 10:
+        # New format - convert to dictionary
+        return dict(zip(headers, row))
+    else:
+        # Unknown format, return as dictionary
+        return dict(zip(headers, row))
+
+# Function to get column index by name
+def get_column_index(headers, column_name):
+    """
+    Returns the index of a column by its name.
+    Returns None if column not found.
+    """
+    try:
+        return headers.index(column_name)
+    except ValueError:
+        return None
 
 if __name__ == "__main__":
     # User assets
