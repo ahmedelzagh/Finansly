@@ -58,8 +58,13 @@ OLD_FORMAT_HEADERS = [
     COL_TOTAL_WEALTH
 ]
 
-# Function to fetch gold price in EGP per gram
+# Function to fetch gold prices in EGP per gram (both 24k and 21k)
 def get_gold_price():
+    """
+    Fetches both 24k and 21k gold prices from the API.
+    Returns a tuple (price_24k, price_21k) or (None, None) on error.
+    If 21k price is not available from API, calculates it as 21/24 of 24k price.
+    """
     headers = {
         "x-access-token": GOLD_API_KEY,
         "Content-Type": "application/json"
@@ -69,13 +74,20 @@ def get_gold_price():
         response.raise_for_status()
         data = response.json()
         price_gram_24k = data.get("price_gram_24k", None)
+        price_gram_21k = data.get("price_gram_21k", None)
 
         if price_gram_24k:
-            return round(price_gram_24k, 2)  # Price per gram for 24k gold
-        return None
+            price_24k = round(price_gram_24k, 2)
+            # If 21k price is not available from API, calculate it as 21/24 of 24k price
+            if price_gram_21k:
+                price_21k = round(price_gram_21k, 2)
+            else:
+                price_21k = round(price_gram_24k * (21 / 24), 2)
+            return (price_24k, price_21k)
+        return (None, None)
     except requests.exceptions.RequestException as e:
         print(f"Error fetching gold price: {e}")
-        return None
+        return (None, None)
 
 # Function to fetch official USD to EGP rate
 def get_official_usd_rate():
@@ -107,23 +119,23 @@ if __name__ == "__main__":
     USD = round(float(input("Enter your USD balance: ")), 2)  # Money in USD
 
     # Fetch prices
-    gold_price_per_gram = get_gold_price()
+    gold_price_24k, gold_price_21k = get_gold_price()
     official_usd_rate = get_official_usd_rate()
 
-    if gold_price_per_gram and official_usd_rate:
-        total_gold_value_egp = round(GOLD * gold_price_per_gram, 2)
+    if gold_price_24k and official_usd_rate:
+        total_gold_value_egp = round(GOLD * gold_price_24k, 2)
         total_usd_value_egp = round(USD * official_usd_rate, 2)
         total_wealth_egp = round(total_gold_value_egp + total_usd_value_egp, 2)
 
         print("\n--- Financial Summary ---")
-        print(f"Gold Price (EGP/gm): {gold_price_per_gram}")
+        print(f"Gold Price 24k (EGP/gm): {gold_price_24k}")
+        print(f"Gold Price 21k (EGP/gm): {gold_price_21k}")
         print(f"Official USD Rate: {official_usd_rate}")
         print(f"Total Gold Value (EGP): {total_gold_value_egp}")
         print(f"Total USD Value (EGP): {total_usd_value_egp}")
         print(f"Total Wealth (EGP): {total_wealth_egp}")
 
-        # Save to Excel
-        current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        save_to_excel(current_date, GOLD, USD, gold_price_per_gram, official_usd_rate, total_gold_value_egp, total_usd_value_egp, total_wealth_egp)
+        # Note: save_to_excel will be updated in next step
+        # save_to_excel(current_date, GOLD, USD, gold_price_24k, official_usd_rate, total_gold_value_egp, total_usd_value_egp, total_wealth_egp)
     else:
         print("Could not fetch one or more price values.")
