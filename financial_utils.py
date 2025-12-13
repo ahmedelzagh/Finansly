@@ -15,6 +15,49 @@ CB_EGP_USD_URL = "https://api.exchangerate-api.com/v4/latest/USD"  # Central Ban
 # Constants
 TROY_OUNCE_TO_GRAM = 31.1035  # 1 Troy Ounce = 31.1035 grams
 
+# Column name constants for Excel file structure
+COL_TIMESTAMP = "Timestamp"
+COL_GOLD_24K_HOLDINGS = "Gold Holdings 24k (grams)"
+COL_GOLD_21K_HOLDINGS = "Gold Holdings 21k (grams)"
+COL_USD_BALANCE = "USD Balance"
+COL_GOLD_24K_PRICE = "Gold Price 24k (EGP/gm)"
+COL_GOLD_21K_PRICE = "Gold Price 21k (EGP/gm)"
+COL_OFFICIAL_USD_RATE = "Official USD Rate"
+COL_TOTAL_GOLD_VALUE = "Total Gold Value (EGP)"
+COL_TOTAL_USD_VALUE = "Total USD Value (EGP)"
+COL_TOTAL_WEALTH = "Total Wealth (EGP)"
+
+# Old format column names (for backward compatibility)
+COL_OLD_DATE = "Date"
+COL_OLD_GOLD_HOLDINGS = "Gold Holdings (grams)"
+COL_OLD_GOLD_PRICE = "Gold Price (EGP/gm)"
+
+# New format headers (10 columns)
+NEW_FORMAT_HEADERS = [
+    COL_TIMESTAMP,
+    COL_GOLD_24K_HOLDINGS,
+    COL_GOLD_21K_HOLDINGS,
+    COL_USD_BALANCE,
+    COL_GOLD_24K_PRICE,
+    COL_GOLD_21K_PRICE,
+    COL_OFFICIAL_USD_RATE,
+    COL_TOTAL_GOLD_VALUE,
+    COL_TOTAL_USD_VALUE,
+    COL_TOTAL_WEALTH
+]
+
+# Old format headers (8 columns)
+OLD_FORMAT_HEADERS = [
+    COL_OLD_DATE,
+    COL_OLD_GOLD_HOLDINGS,
+    COL_USD_BALANCE,
+    COL_OLD_GOLD_PRICE,
+    COL_OFFICIAL_USD_RATE,
+    COL_TOTAL_GOLD_VALUE,
+    COL_TOTAL_USD_VALUE,
+    COL_TOTAL_WEALTH
+]
+
 # Function to fetch gold price in EGP per gram
 def get_gold_price():
     headers = {
