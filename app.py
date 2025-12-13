@@ -6,7 +6,7 @@ from datetime import datetime
 from financial_utils import (
     get_gold_price, get_official_usd_rate, save_to_excel,
     detect_excel_format, normalize_row_to_new_format, get_column_index,
-    NEW_FORMAT_HEADERS, COL_TIMESTAMP
+    round_numeric_value, NEW_FORMAT_HEADERS, COL_TIMESTAMP
 )
 
 app = Flask(__name__)
@@ -36,11 +36,13 @@ def index():
 
         if (gold_price_24k or gold_price_21k) and official_usd_rate:
             # Calculate total gold value by combining both 24k and 21k holdings
-            total_gold_value_egp = 0
+            total_gold_value_egp = 0.0
             if gold_holdings_24k and gold_price_24k:
-                total_gold_value_egp += round(gold_holdings_24k * gold_price_24k, 2)
+                total_gold_value_egp += gold_holdings_24k * gold_price_24k
             if gold_holdings_21k and gold_price_21k:
-                total_gold_value_egp += round(gold_holdings_21k * gold_price_21k, 2)
+                total_gold_value_egp += gold_holdings_21k * gold_price_21k
+            # Round the final total to avoid floating point precision issues
+            total_gold_value_egp = round(total_gold_value_egp, 2)
             
             total_usd_value_egp = round(usd_balance * official_usd_rate, 2)
             total_wealth_egp = round(total_gold_value_egp + total_usd_value_egp, 2)
@@ -93,8 +95,14 @@ def index():
         for row in sheet.iter_rows(min_row=2, values_only=True):
             if row:  # Skip empty rows
                 normalized_row = normalize_row_to_new_format(row, existing_headers)
-                # Convert dictionary to list in header order
-                data_row = [normalized_row.get(header, None) for header in headers]
+                # Convert dictionary to list in header order and round numeric values
+                data_row = []
+                for header in headers:
+                    value = normalized_row.get(header, None)
+                    # Round numeric values to 2 decimal places (except timestamp)
+                    if header != COL_TIMESTAMP:
+                        value = round_numeric_value(value, 2)
+                    data_row.append(value)
                 # Extract timestamp for delete button (always at timestamp_col_index)
                 timestamp_value = data_row[timestamp_col_index] if timestamp_col_index < len(data_row) else None
                 data.append({

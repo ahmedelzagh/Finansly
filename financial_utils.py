@@ -195,6 +195,21 @@ def get_column_index(headers, column_name):
     except ValueError:
         return None
 
+# Function to round numeric values to 2 decimal places
+def round_numeric_value(value, decimal_places=2):
+    """
+    Rounds numeric values to specified decimal places.
+    Returns None if value is None, otherwise returns rounded float or original value if not numeric.
+    """
+    if value is None:
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            return round(float(value), decimal_places)
+        return value
+    except (ValueError, TypeError):
+        return value
+
 if __name__ == "__main__":
     # User assets
     GOLD = round(float(input("Enter your gold holdings (grams): ")), 2)  # Gold in grams
