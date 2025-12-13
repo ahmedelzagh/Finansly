@@ -95,11 +95,16 @@ def index():
                 normalized_row = normalize_row_to_new_format(row, existing_headers)
                 # Convert dictionary to list in header order
                 data_row = [normalized_row.get(header, None) for header in headers]
-                data.append(data_row)
+                # Extract timestamp for delete button (always at timestamp_col_index)
+                timestamp_value = data_row[timestamp_col_index] if timestamp_col_index < len(data_row) else None
+                data.append({
+                    'row': data_row,
+                    'timestamp': timestamp_value
+                })
         
         data.reverse()  # Reverse the order to show latest details on top
 
-    return render_template("index.html", headers=headers, data=data, timestamp_col_index=timestamp_col_index)
+    return render_template("index.html", headers=headers, data=data)
 
 @app.route("/delete/<timestamp>", methods=["DELETE"])
 def delete_entry(timestamp):

@@ -148,13 +148,13 @@
             </tr>
           </thead>
           <tbody>
-            {% for row in data %}
+            {% for item in data %}
             <tr>
-              {% for cell in row %}
+              {% for cell in item.row %}
               <td>{% if cell is none %}{% else %}{{ cell }}{% endif %}</td>
               {% endfor %}
               <td>
-                <button class="delete-btn" onclick="deleteEntry('{{ row[timestamp_col_index] }}')">Delete</button>
+                <button class="delete-btn" onclick="deleteEntry('{{ item.timestamp }}')">Delete</button>
               </td>
             </tr>
             {% endfor %}
