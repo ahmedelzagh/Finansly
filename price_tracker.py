@@ -185,7 +185,7 @@ def check_and_notify(asset_type, display_name, current_price):
 
 def format_trading_alert(asset_type, action, current_price, analysis):
     """
-    Format a trading alert message with detailed analysis
+    Format a trading alert message with detailed analysis and beginner-friendly explanations
     
     Args:
         asset_type (str): Asset name
@@ -197,39 +197,118 @@ def format_trading_alert(asset_type, action, current_price, analysis):
         str: Formatted message
     """
     emoji = "🟢" if action == "BUY" else "🔴"
+    signal_count = analysis.get('buy_signals', 0) if action == 'BUY' else analysis.get('sell_signals', 0)
     
-    message = f"{emoji} <b>{action} Signal: {asset_type}</b>\n\n"
-    message += f"💰 Current Price: {current_price:.2f}\n\n"
+    message = f"{emoji} <b>{action} SIGNAL: {asset_type}</b>\n"
+    message += "=" * 40 + "\n\n"
+    
+    # Current Price
+    message += f"💰 <b>Current Price:</b> {current_price:.2f}\n\n"
+    
+    # What to do section
+    if action == "BUY":
+        message += "📋 <b>WHAT THIS MEANS:</b>\n"
+        message += "Multiple indicators suggest this is a good time to BUY.\n"
+        message += "The price may be at a low point and could rise soon.\n\n"
+        message += "✅ <b>RECOMMENDED ACTION:</b>\n"
+        message += "• Consider buying now if you were planning to invest\n"
+        message += "• This could be a good entry point\n"
+        message += "• However, always do your own research before investing\n\n"
+    else:  # SELL
+        message += "📋 <b>WHAT THIS MEANS:</b>\n"
+        message += "Multiple indicators suggest this is a good time to SELL.\n"
+        message += "The price may be at a high point and could drop soon.\n\n"
+        message += "✅ <b>RECOMMENDED ACTION:</b>\n"
+        message += "• Consider selling if you want to take profits\n"
+        message += "• This could be a good exit point\n"
+        message += "• However, always do your own research before selling\n\n"
     
     indicators = analysis.get("indicators", {})
     reasons = analysis.get("reasons", [])
     
-    # Add indicator values
-    if indicators.get("sma_10") and indicators.get("sma_30"):
-        message += f"📊 Moving Averages:\n"
-        message += f"   • SMA 10: {indicators['sma_10']:.2f}\n"
-        message += f"   • SMA 30: {indicators['sma_30']:.2f}\n\n"
+    message += "📊 <b>TECHNICAL ANALYSIS:</b>\n\n"
     
+    # Moving Averages explanation
+    if indicators.get("sma_10") and indicators.get("sma_30"):
+        sma_10 = indicators['sma_10']
+        sma_30 = indicators['sma_30']
+        message += f"📈 <b>Moving Averages (Trend Indicator):</b>\n"
+        message += f"   • Short-term average (10 periods): {sma_10:.2f}\n"
+        message += f"   • Long-term average (30 periods): {sma_30:.2f}\n"
+        if sma_10 > sma_30:
+            message += f"   → <i>Short-term is ABOVE long-term = Upward trend (Good for buying)</i>\n\n"
+        else:
+            message += f"   → <i>Short-term is BELOW long-term = Downward trend (Good for selling)</i>\n\n"
+    
+    # RSI explanation
     if indicators.get("rsi"):
         rsi = indicators["rsi"]
-        rsi_status = "🔴 Overbought" if rsi > 70 else "🟢 Oversold" if rsi < 30 else "🟡 Neutral"
-        message += f"📈 RSI: {rsi:.1f} ({rsi_status})\n\n"
+        message += f"📉 <b>RSI - Relative Strength Index:</b> {rsi:.1f}/100\n"
+        if rsi < 30:
+            message += f"   → <i>RSI is VERY LOW (Oversold) = Asset may be undervalued, good BUY opportunity</i>\n\n"
+        elif rsi > 70:
+            message += f"   → <i>RSI is VERY HIGH (Overbought) = Asset may be overvalued, good SELL opportunity</i>\n\n"
+        elif rsi < 40:
+            message += f"   → <i>RSI is LOW (Approaching oversold) = Could be a good time to buy</i>\n\n"
+        elif rsi > 60:
+            message += f"   → <i>RSI is HIGH (Approaching overbought) = Could be a good time to sell</i>\n\n"
+        else:
+            message += f"   → <i>RSI is NEUTRAL (40-60) = No strong signal</i>\n\n"
     
+    # Support/Resistance explanation
     if indicators.get("support") and indicators.get("resistance"):
-        message += f"📉 Support: {indicators['support']:.2f}\n"
-        message += f"📈 Resistance: {indicators['resistance']:.2f}\n\n"
+        support = indicators['support']
+        resistance = indicators['resistance']
+        price_range = resistance - support
+        price_position = ((current_price - support) / price_range * 100) if price_range > 0 else 50
+        
+        message += f"🎯 <b>Price Levels:</b>\n"
+        message += f"   • Support (Low point): {support:.2f}\n"
+        message += f"   • Resistance (High point): {resistance:.2f}\n"
+        message += f"   • Current position: {price_position:.1f}% of the range\n"
+        
+        if price_position < 30:
+            message += f"   → <i>Price is NEAR SUPPORT (bottom) = Good time to BUY</i>\n\n"
+        elif price_position > 70:
+            message += f"   → <i>Price is NEAR RESISTANCE (top) = Good time to SELL</i>\n\n"
+        else:
+            message += f"   → <i>Price is in the MIDDLE = Neutral</i>\n\n"
     
+    # Trend explanation
     if indicators.get("trend"):
-        trend_emoji = "📈" if indicators["trend"] == "bullish" else "📉"
-        message += f"{trend_emoji} Trend: {indicators['trend'].title()}\n\n"
+        trend = indicators["trend"]
+        trend_emoji = "📈" if trend == "bullish" else "📉"
+        message += f"{trend_emoji} <b>Overall Trend:</b> {trend.title()}\n"
+        if trend == "bullish":
+            message += f"   → <i>Prices are generally going UP = Positive momentum</i>\n\n"
+        else:
+            message += f"   → <i>Prices are generally going DOWN = Negative momentum</i>\n\n"
     
-    # Add reasons for the signal
+    # Signal strength
+    message += "🔍 <b>WHY THIS SIGNAL:</b>\n"
     if reasons:
-        message += f"✅ <b>Signal Reasons:</b>\n"
-        for reason in reasons:
-            message += f"   • {reason}\n"
+        for i, reason in enumerate(reasons, 1):
+            message += f"   {i}. {reason}\n"
+    message += "\n"
     
-    message += f"\n💡 <i>Requires {analysis.get('buy_signals', 0) if action == 'BUY' else analysis.get('sell_signals', 0)} confirmations</i>"
+    # Confidence level
+    message += "💪 <b>CONFIDENCE LEVEL:</b>\n"
+    if signal_count >= 4:
+        message += f"   ⭐⭐⭐ <b>VERY STRONG</b> ({signal_count} confirmations)\n"
+        message += "   → Multiple indicators strongly agree\n"
+    elif signal_count >= 3:
+        message += f"   ⭐⭐ <b>STRONG</b> ({signal_count} confirmations)\n"
+        message += "   → Several indicators agree\n"
+    else:
+        message += f"   ⭐ <b>MODERATE</b> ({signal_count} confirmations)\n"
+        message += "   → Some indicators agree\n"
+    
+    message += "\n"
+    message += "⚠️ <b>IMPORTANT REMINDER:</b>\n"
+    message += "This is an automated signal based on technical analysis.\n"
+    message += "Always do your own research and consider your financial situation\n"
+    message += "before making any investment decisions.\n"
+    message += "Past performance does not guarantee future results."
     
     return message
 
