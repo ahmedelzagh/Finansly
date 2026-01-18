@@ -58,11 +58,15 @@
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         // Retrieve stored values from local storage
-        const goldHoldings = localStorage.getItem("gold_holdings");
+        const goldHoldings24k = localStorage.getItem("gold_holdings_24k");
+        const goldHoldings21k = localStorage.getItem("gold_holdings_21k");
         const usdBalance = localStorage.getItem("usd_balance");
 
-        if (goldHoldings) {
-          document.getElementById("gold_holdings").value = goldHoldings;
+        if (goldHoldings24k) {
+          document.getElementById("gold_holdings_24k").value = goldHoldings24k;
+        }
+        if (goldHoldings21k) {
+          document.getElementById("gold_holdings_21k").value = goldHoldings21k;
         }
         if (usdBalance) {
           document.getElementById("usd_balance").value = usdBalance;
@@ -70,10 +74,12 @@
 
         // Store values in local storage on form submit
         document.querySelector("form").addEventListener("submit", function () {
-          const goldHoldingsValue = document.getElementById("gold_holdings").value;
+          const goldHoldings24kValue = document.getElementById("gold_holdings_24k").value;
+          const goldHoldings21kValue = document.getElementById("gold_holdings_21k").value;
           const usdBalanceValue = document.getElementById("usd_balance").value;
 
-          localStorage.setItem("gold_holdings", goldHoldingsValue);
+          localStorage.setItem("gold_holdings_24k", goldHoldings24kValue);
+          localStorage.setItem("gold_holdings_21k", goldHoldings21kValue);
           localStorage.setItem("usd_balance", usdBalanceValue);
         });
       });
@@ -95,8 +101,12 @@
       <h1>Financial Summary</h1>
       <form method="POST">
         <div class="input-field">
-          <input type="number" step="0.01" id="gold_holdings" name="gold_holdings" required />
-          <label for="gold_holdings">Gold Holdings (grams):</label>
+          <input type="number" step="0.01" id="gold_holdings_24k" name="gold_holdings_24k" />
+          <label for="gold_holdings_24k">Gold Holdings 24k (grams):</label>
+        </div>
+        <div class="input-field">
+          <input type="number" step="0.01" id="gold_holdings_21k" name="gold_holdings_21k" />
+          <label for="gold_holdings_21k">Gold Holdings 21k (grams):</label>
         </div>
         <div class="input-field">
           <input type="number" step="0.01" id="usd_balance" name="usd_balance" required />
@@ -105,11 +115,21 @@
         <button type="submit" class="btn">Submit</button>
       </form>
 
-      {% if session.gold_holdings %}
+      {% if session.gold_holdings_24k or session.gold_holdings_21k or session.usd_balance %}
       <h2>Current Session Data</h2>
-      <p>Gold Holdings: {{ session.gold_holdings }} grams</p>
+      {% if session.gold_holdings_24k %}
+      <p>Gold Holdings 24k: {{ session.gold_holdings_24k }} grams</p>
+      {% endif %}
+      {% if session.gold_holdings_21k %}
+      <p>Gold Holdings 21k: {{ session.gold_holdings_21k }} grams</p>
+      {% endif %}
       <p>USD Balance: {{ session.usd_balance }} USD</p>
-      <p>Gold Price (EGP/gm): {{ session.gold_price_per_gram }}</p>
+      {% if session.gold_price_24k %}
+      <p>Gold Price 24k (EGP/gm): {{ session.gold_price_24k }}</p>
+      {% endif %}
+      {% if session.gold_price_21k %}
+      <p>Gold Price 21k (EGP/gm): {{ session.gold_price_21k }}</p>
+      {% endif %}
       <p>Official USD Rate: {{ session.official_usd_rate }}</p>
       <p>Total Gold Value (EGP): {{ session.total_gold_value_egp }}</p>
       <p>Total USD Value (EGP): {{ session.total_usd_value_egp }}</p>
@@ -128,13 +148,13 @@
             </tr>
           </thead>
           <tbody>
-            {% for row in data %}
+            {% for item in data %}
             <tr>
-              {% for cell in row %}
-              <td>{{ cell }}</td>
+              {% for cell in item.row %}
+              <td>{% if cell is none %}{% else %}{{ cell }}{% endif %}</td>
               {% endfor %}
               <td>
-                <button class="delete-btn" onclick="deleteEntry('{{ row[0] }}')">Delete</button>
+                <button class="delete-btn" onclick="deleteEntry('{{ item.timestamp }}')">Delete</button>
               </td>
             </tr>
             {% endfor %}
