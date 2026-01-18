@@ -90,6 +90,9 @@ celerybeat-schedule
 .env
 !.env.example
 
+# Price history
+price_history.json
+
 # virtualenv
 venv/
 ENV/
