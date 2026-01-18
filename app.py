@@ -1,6 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_session import Session
 import os
+import threading
+import time
 from functools import wraps
 from openpyxl import load_workbook
 from datetime import datetime
@@ -10,6 +12,7 @@ from financial_utils import (
     detect_excel_format, normalize_row_to_new_format, get_column_index,
     round_numeric_value, NEW_FORMAT_HEADERS, COL_TIMESTAMP
 )
+from price_tracker import check_all_prices
 
 # Load environment variables
 load_dotenv()
@@ -183,5 +186,26 @@ def delete_entry(timestamp):
                 return jsonify(success=True)
     return jsonify(success=False), 404
 
+def background_price_checker():
+    """Background thread to check prices periodically"""
+    # Wait a bit before starting to let Flask app initialize
+    time.sleep(30)
+    
+    # Check prices every 30 minutes (1800 seconds)
+    CHECK_INTERVAL = 30 * 60
+    
+    while True:
+        try:
+            check_all_prices()
+        except Exception as e:
+            print(f"Error in background price checker: {e}")
+        
+        time.sleep(CHECK_INTERVAL)
+
+
 if __name__ == "__main__":
+    # Start background price checking thread
+    price_checker_thread = threading.Thread(target=background_price_checker, daemon=True)
+    price_checker_thread.start()
+    
     app.run(debug=True)
