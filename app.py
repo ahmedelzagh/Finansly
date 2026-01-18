@@ -1,20 +1,64 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_session import Session
 import os
+from functools import wraps
 from openpyxl import load_workbook
 from datetime import datetime
+from dotenv import load_dotenv
 from financial_utils import (
     get_gold_price, get_official_usd_rate, save_to_excel,
     detect_excel_format, normalize_row_to_new_format, get_column_index,
     round_numeric_value, NEW_FORMAT_HEADERS, COL_TIMESTAMP
 )
 
+# Load environment variables
+load_dotenv()
+
 app = Flask(__name__)
 app.config["SESSION_TYPE"] = "filesystem"
-app.secret_key = os.urandom(24)
+app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())
 Session(app)
 
+# Authentication credentials from environment variables
+APP_USERNAME = os.getenv("APP_USERNAME", "admin")
+APP_PASSWORD = os.getenv("APP_PASSWORD", "password123")
+
+def login_required(f):
+    """Decorator to protect routes that require authentication"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get("logged_in"):
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    """Login page"""
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+        
+        if username == APP_USERNAME and password == APP_PASSWORD:
+            session["logged_in"] = True
+            return redirect(url_for("index"))
+        else:
+            return render_template("login.html", error="Invalid username or password")
+    
+    # If already logged in, redirect to index
+    if session.get("logged_in"):
+        return redirect(url_for("index"))
+    
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    """Logout and clear session"""
+    session.clear()
+    return redirect(url_for("login"))
+
 @app.route("/", methods=["GET", "POST"])
+@login_required
 def index():
     if request.method == "POST":
         # Get 24k gold holdings (optional)
@@ -115,6 +159,7 @@ def index():
     return render_template("index.html", headers=headers, data=data)
 
 @app.route("/delete/<timestamp>", methods=["DELETE"])
+@login_required
 def delete_entry(timestamp):
     file_path = "financial_summary.xlsx"
     if os.path.exists(file_path):
