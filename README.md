@@ -35,10 +35,15 @@ Finansly is a Python-based financial summary tool that helps users track their w
    pip install requests openpyxl python-dotenv flask flask-session
    ```
 
-3. Create a `.env` file in the project directory and add your Gold API key:
+3. Create a `.env` file in the project directory and add your configuration:
    ```env
    GOLD_API_KEY=your_gold_api_key
+   APP_USERNAME=admin
+   APP_PASSWORD=your_secure_password
+   SECRET_KEY=your_secret_key_here
    ```
+   
+   **Note:** The app uses simple authentication. Set `APP_USERNAME` and `APP_PASSWORD` to your desired login credentials. The `SECRET_KEY` is used for session security - you can generate one using `python -c "import secrets; print(secrets.token_hex(24))"`.
 
 ## Usage
 
@@ -50,7 +55,9 @@ Finansly is a Python-based financial summary tool that helps users track their w
 
 2. Open your web browser and go to `http://127.0.0.1:5000`.
 
-3. Enter your gold holdings (in grams) and USD balance in the form and submit.
+3. You will be redirected to the login page. Enter your username and password (set in `.env` file).
+
+4. After logging in, enter your gold holdings (in grams) and USD balance in the form and submit.
 
 4. The application will fetch the latest gold price and USD to EGP exchange rate, calculate the total values, and display the financial summary.
 
