@@ -247,4 +247,5 @@ if __name__ == "__main__":
     price_checker_thread = threading.Thread(target=background_price_checker, daemon=True)
     price_checker_thread.start()
     
-    app.run(debug=True)
+    # Run Flask app - bind to all interfaces for Docker
+    app.run(host='0.0.0.0', port=5000, debug=False)
