@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 from financial_utils import get_gold_price, get_official_usd_rate, get_gbp_rate
 from telegram_utils import send_telegram_message, format_price_alert
-from trading_strategy import get_trading_signal
+from trading_strategy import get_trading_signal, find_support_resistance
 
 # Configuration
 PRICE_HISTORY_FILE = "price_history.json"
@@ -15,6 +15,7 @@ SIGNAL_TRACKING_FILE = "signal_tracking.json"  # Track last signals to avoid dup
 MAX_HISTORY_ENTRIES = 200  # Keep more history for better analysis (need at least 30 for indicators)
 MIN_HISTORY_FOR_SIGNALS = 30  # Minimum history required before sending signals
 SIGNAL_COOLDOWN_HOURS = 6  # Don't send same signal type within this many hours
+MIN_VOLATILITY_RATIO = 0.005  # Require at least 0.5% range over lookback to consider signal (avoid noise)
 
 
 def load_price_history():
@@ -98,6 +99,93 @@ def record_signal(asset_type, signal_type):
     tracking[key] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     save_signal_tracking(tracking)
 
+def _get_signal_candidate(asset_type, display_name, current_price):
+    """
+    Update history for an asset and (optionally) return a signal candidate.
+
+    Returns:
+        dict | None:
+          {
+            "asset_type": "usd",
+            "display_name": "USD/EGP",
+            "signal": "BUY"|"SELL",
+            "current_price": float,
+            "analysis": dict,
+          }
+    """
+    if current_price is None:
+        return None
+
+    # Add current price to history (include it in analysis)
+    add_price_entry(asset_type, current_price)
+
+    price_history = get_price_history_list(asset_type)
+
+    # Need sufficient history for reliable signals
+    if len(price_history) < MIN_HISTORY_FOR_SIGNALS:
+        return None
+
+    # Volatility filter: ignore if price range is too small (flat market)
+    support, resistance = find_support_resistance(price_history, lookback=20)
+    if support is not None and resistance is not None and resistance > support:
+        mid_price = (support + resistance) / 2.0
+        price_range = resistance - support
+        if mid_price > 0:
+            volatility_ratio = price_range / mid_price
+            if volatility_ratio < MIN_VOLATILITY_RATIO:
+                # Market is too flat; treat as no meaningful signal
+                return None
+
+    signal, analysis = get_trading_signal(price_history, current_price, MIN_HISTORY_FOR_SIGNALS)
+    if not signal:
+        return None
+
+    # Respect cooldown per asset/signal
+    if not should_send_signal(asset_type, signal):
+        return None
+
+    return {
+        "asset_type": asset_type,
+        "display_name": display_name,
+        "signal": signal,
+        "current_price": current_price,
+        "analysis": analysis,
+    }
+
+def _format_signal_short(candidate):
+    """
+    Create a short/concise one-liner style message for a single asset signal.
+    """
+    action = candidate["signal"]
+    emoji = "🟢" if action == "BUY" else "🔴"
+    name = candidate["display_name"]
+    price = candidate["current_price"]
+    analysis = candidate.get("analysis", {})
+    indicators = analysis.get("indicators", {}) if isinstance(analysis, dict) else {}
+    signal_count = analysis.get("buy_signals", 0) if action == "BUY" else analysis.get("sell_signals", 0)
+
+    rsi = indicators.get("rsi")
+    trend = indicators.get("trend")
+
+    bits = []
+    if isinstance(rsi, (int, float)):
+        bits.append(f"RSI {rsi:.1f}")
+    if trend:
+        bits.append(f"Trend {str(trend).title()}")
+    bits.append(f"Conf {signal_count}")
+
+    details = " | ".join(bits)
+    return f"{emoji} <b>{action}</b> {name} @ {price:.2f} ({details})"
+
+def _format_fx_combined_short(candidates):
+    """
+    Create a single short message containing USD and/or GBP signals.
+    """
+    lines = ["💱 <b>CURRENCIES SIGNALS</b>"]
+    for c in candidates:
+        lines.append(_format_signal_short(c))
+    return "\n".join(lines)
+
 
 def add_price_entry(asset_type, price):
     """
@@ -154,33 +242,14 @@ def check_and_notify(asset_type, display_name, current_price):
         display_name (str): Display name for notifications (e.g., "Gold 24k")
         current_price (float): Current price
     """
-    if current_price is None:
+    candidate = _get_signal_candidate(asset_type, display_name, current_price)
+    if not candidate:
         return
-    
-    # Get price history for analysis
-    price_history = get_price_history_list(asset_type)
-    
-    # Add current price to history (before analysis to include it)
-    add_price_entry(asset_type, current_price)
-    
-    # Get updated history with current price
-    price_history = get_price_history_list(asset_type)
-    
-    # Need sufficient history for reliable signals
-    if len(price_history) < MIN_HISTORY_FOR_SIGNALS:
-        return
-    
-    # Get trading signal using multiple indicators
-    signal, analysis = get_trading_signal(price_history, current_price, MIN_HISTORY_FOR_SIGNALS)
-    
-    if signal:
-        # Check if we should send this signal (avoid duplicates)
-        if should_send_signal(asset_type, signal):
-            # Format detailed message with analysis
-            message = format_trading_alert(display_name, signal, current_price, analysis)
-            if send_telegram_message(message):
-                # Record that signal was sent
-                record_signal(asset_type, signal)
+
+    # Short & concise message
+    message = _format_signal_short(candidate)
+    if send_telegram_message(message):
+        record_signal(asset_type, candidate["signal"])
 
 
 def format_trading_alert(asset_type, action, current_price, analysis):
@@ -318,19 +387,34 @@ def check_all_prices():
     Check all tracked prices and send notifications if needed.
     This is the main function to call periodically.
     """
-    # Check Gold prices
-    gold_price_24k, gold_price_21k = get_gold_price()
+    # Gold: only track 24k (same signal direction as 21k for our purposes)
+    gold_price_24k, _gold_price_21k = get_gold_price()
+    gold_candidate = None
     if gold_price_24k:
-        check_and_notify("gold_24k", "Gold 24k (EGP/gm)", gold_price_24k)
-    if gold_price_21k:
-        check_and_notify("gold_21k", "Gold 21k (EGP/gm)", gold_price_21k)
-    
-    # Check USD rate
+        gold_candidate = _get_signal_candidate("gold_24k", "Gold 24k (EGP/gm)", gold_price_24k)
+
+    # Currencies: compute candidates, but send ONE combined message (max)
+    fx_candidates = []
     usd_rate = get_official_usd_rate()
     if usd_rate:
-        check_and_notify("usd", "USD/EGP", usd_rate)
-    
-    # Check GBP rate
+        c = _get_signal_candidate("usd", "USD/EGP", usd_rate)
+        if c:
+            fx_candidates.append(c)
+
     gbp_rate = get_gbp_rate()
     if gbp_rate:
-        check_and_notify("gbp", "GBP/EGP", gbp_rate)
+        c = _get_signal_candidate("gbp", "GBP/EGP", gbp_rate)
+        if c:
+            fx_candidates.append(c)
+
+    # Send at most 2 notifications per run: 1 gold + 1 combined FX
+    if gold_candidate:
+        msg = _format_signal_short(gold_candidate)
+        if send_telegram_message(msg):
+            record_signal(gold_candidate["asset_type"], gold_candidate["signal"])
+
+    if fx_candidates:
+        msg = _format_fx_combined_short(fx_candidates)
+        if send_telegram_message(msg):
+            for c in fx_candidates:
+                record_signal(c["asset_type"], c["signal"])

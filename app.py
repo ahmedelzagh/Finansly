@@ -230,8 +230,8 @@ def background_price_checker():
     # Wait a bit before starting to let Flask app initialize
     time.sleep(30)
     
-    # Check prices every 30 minutes (1800 seconds)
-    CHECK_INTERVAL = 30 * 60
+    # Check prices every 6 hours (to reduce API usage)
+    CHECK_INTERVAL = 6 * 60 * 60
     
     while True:
         try:
