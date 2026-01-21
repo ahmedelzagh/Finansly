@@ -66,11 +66,13 @@ def calculate_rsi(prices: List[float], period: int = 14) -> Optional[float]:
     # Calculate price changes
     gains = []
     losses = []
+    max_abs_change = 0.0
     
     for i in range(len(prices) - period, len(prices)):
         if i == 0:
             continue
         change = prices[i] - prices[i - 1]
+        max_abs_change = max(max_abs_change, abs(change))
         if change > 0:
             gains.append(change)
             losses.append(0)
@@ -85,8 +87,15 @@ def calculate_rsi(prices: List[float], period: int = 14) -> Optional[float]:
     avg_gain = sum(gains[-period:]) / period
     avg_loss = sum(losses[-period:]) / period
     
+    # If price barely moved at all, treat as neutral (RSI ~ 50)
+    last_price = prices[-1]
+    if last_price != 0:
+        # Relative max move below 0.05% of price → essentially flat
+        if (max_abs_change / abs(last_price)) < 0.0005:
+            return 50.0
+    
     if avg_loss == 0:
-        return 100  # All gains, no losses
+        return 100  # All gains, no losses (strong up-move)
     
     rs = avg_gain / avg_loss
     rsi = 100 - (100 / (1 + rs))
