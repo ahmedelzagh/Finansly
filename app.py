@@ -189,13 +189,8 @@ def index():
         sheet = workbook.active
         existing_headers = [cell.value for cell in sheet[1]]
         
-        # Normalize headers and data based on format
-        file_format = detect_excel_format(file_path)
-        if file_format == 'old':
-            # Use new format headers for display, but normalize old data
-            headers = NEW_FORMAT_HEADERS
-        else:
-            headers = existing_headers if len(existing_headers) == 10 else NEW_FORMAT_HEADERS
+        # Use existing headers or default to NEW_FORMAT_HEADERS
+        headers = existing_headers if len(existing_headers) == 10 else NEW_FORMAT_HEADERS
         
         # Get timestamp column index by name
         timestamp_col_index = get_column_index(headers, COL_TIMESTAMP)
