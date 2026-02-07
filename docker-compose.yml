@@ -3,6 +3,7 @@ services:
     build: .
     ports:
       - "5000:5000"
+    restart: unless-stopped
     volumes:
       - .:/app
     environment:
@@ -12,3 +13,4 @@ services:
 
   redis:
     image: "redis:alpine"
+    restart: unless-stopped
