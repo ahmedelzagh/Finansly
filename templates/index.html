@@ -106,6 +106,12 @@
         </a>
       </div>
       <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        {% if error %}
+        <div style="color: #ff5252; margin-bottom: 20px; padding: 10px; background-color: rgba(255, 82, 82, 0.1); border-radius: 4px;">
+          {{ error }}
+        </div>
+        {% endif %}
         <div class="input-field">
           <input type="number" step="0.01" id="gold_holdings_24k" name="gold_holdings_24k" />
           <label for="gold_holdings_24k">Gold Holdings 24k (grams):</label>

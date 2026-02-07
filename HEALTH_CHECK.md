@@ -127,47 +127,43 @@ Date: 2026-02-07
 - URL-encode timestamps in delete endpoint (handle spaces/colons)
 - Files: templates/index.html
 - Impact: User-facing delete functionality
-- Status: Ready for merge (after verification)
+- Status: Completed (merged to main)
 
 ### Phase 2: Documentation & Configuration (Quick Wins)
 **Branch: `docs/readme-alignment`**
 - Fix README: Change "every 30 minutes" to "every 8 hours"
 - Add beautifulsoup4 to install section
 - Files: README.md
-- Status: Not started
+- Status: Completed (merged to main)
 
 **Branch: `cleanup/redis-decision`**
 - Remove unused Redis from docker-compose OR document its purpose
 - Files: docker-compose.yml, app.py, README.md
 - Status: Completed (removed Redis from docker-compose)
 
+**Branch: `feat/daily-notification`**
+- Implement single daily summary notification (once per day at 6pm Cairo time)
+- Files: price_tracker.py
+- Status: Completed (merged to main)
+
 ### Phase 3: Session & Input Hardening (Medium Priority)
 **Branch: `feat/session-hardening`**
-- Add CSRF protection to forms (Flask-WTF or token-based)
+- Add CSRF protection to forms (token-based approach)
 - Improve session cookie security (HTTPOnly, SameSite, Secure flags)
 - Files: app.py, templates/index.html, templates/login.html
-- Status: Not started
+- Status: Completed (merged to main)
 
 **Branch: `cleanup/input-validation`**
 - Add try/except error handling for form input parsing
 - Return 400 with user-friendly messages instead of 500 errors
 - Files: app.py (form processing sections)
-- Status: Not started
-
-### Phase 4: Testing & Quality
-**Branch: `feat/test-suite`**
-- Add unit tests for financial_utils.py (helpers, calculations)
-- Add tests for PayPal transfer calculator
-- Add tests for delete endpoint behavior
-- Files: tests/ (new directory), test files
-- Status: Not started
+- Status: Completed (merged to main)
 
 ### Execution Order
-1. Phase 1 (Critical) → 4 branches
-2. Phase 2 (Quick wins) → 2 branches
-3. Phase 3 (Hardening) → 2 branches
-4. Phase 4 (Testing) → 1 branch
-5. **Total: 9 feature/fix branches to create and merge**
+1. Phase 1 (Critical) → 4 branches → ✅ DONE
+2. Phase 2 (Quick wins) → 3 branches → ✅ DONE
+3. Phase 3 (Hardening) → 2 branches → ✅ DONE
+4. **Total: 9 feature/fix branches created and merged**
 
 ---
 End of report.

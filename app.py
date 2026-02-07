@@ -7,6 +7,7 @@ from functools import wraps
 from openpyxl import load_workbook
 from datetime import datetime
 from dotenv import load_dotenv
+import secrets
 from financial_utils import (
     get_gold_price, get_official_usd_rate, save_to_excel,
     detect_excel_format, normalize_row_to_new_format, get_column_index,
@@ -19,6 +20,9 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config["SESSION_TYPE"] = "filesystem"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = True
 app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())
 Session(app)
 
@@ -31,6 +35,26 @@ APP_PASSWORD = os.getenv("APP_PASSWORD")
 
 if not APP_USERNAME or not APP_PASSWORD:
     raise RuntimeError("APP_USERNAME and APP_PASSWORD must be set in environment variables.")
+
+def generate_csrf_token():
+    """Generate a new CSRF token and store it in session"""
+    token = secrets.token_urlsafe(32)
+    session['csrf_token'] = token
+    return token
+
+def get_csrf_token():
+    """Get existing CSRF token or generate a new one"""
+    if 'csrf_token' not in session:
+        return generate_csrf_token()
+    return session['csrf_token']
+
+def verify_csrf_token(token):
+    """Verify CSRF token from form submission"""
+    session_token = session.get('csrf_token')
+    if not session_token or not token:
+        return False
+    # Use constant-time comparison to prevent timing attacks
+    return secrets.compare_digest(session_token, token)
 
 def login_required(f):
     """Decorator to protect routes that require authentication"""
@@ -45,6 +69,11 @@ def login_required(f):
 def login():
     """Login page"""
     if request.method == "POST":
+        # Verify CSRF token
+        csrf_token = request.form.get("csrf_token")
+        if not verify_csrf_token(csrf_token):
+            return render_template("login.html", error="Invalid security token. Please try again.", csrf_token=get_csrf_token())
+        
         username = request.form.get("username")
         password = request.form.get("password")
         
@@ -52,13 +81,13 @@ def login():
             session["logged_in"] = True
             return redirect(url_for("index"))
         else:
-            return render_template("login.html", error="Invalid username or password")
+            return render_template("login.html", error="Invalid username or password", csrf_token=get_csrf_token())
     
     # If already logged in, redirect to index
     if session.get("logged_in"):
         return redirect(url_for("index"))
     
-    return render_template("login.html")
+    return render_template("login.html", csrf_token=get_csrf_token())
 
 @app.route("/logout")
 def logout():
@@ -70,35 +99,62 @@ def logout():
 @login_required
 def index():
     if request.method == "POST":
-        # Get 24k gold holdings (optional)
-        gold_holdings_24k = None
-        if request.form.get("gold_holdings_24k"):
-            gold_holdings_24k = round(float(request.form["gold_holdings_24k"]), 2)
+        # Verify CSRF token
+        csrf_token = request.form.get("csrf_token")
+        if not verify_csrf_token(csrf_token):
+            return render_template("index.html", error="Invalid security token. Please try again.", csrf_token=get_csrf_token())
         
-        # Get 21k gold holdings (optional)
-        gold_holdings_21k = None
-        if request.form.get("gold_holdings_21k"):
-            gold_holdings_21k = round(float(request.form["gold_holdings_21k"]), 2)
-        
-        # USD balance is required
-        usd_balance = round(float(request.form["usd_balance"]), 2)
-
-        # Fetch both 24k and 21k gold prices
-        gold_price_24k, gold_price_21k = get_gold_price()
-        official_usd_rate = get_official_usd_rate()
-
-        if (gold_price_24k or gold_price_21k) and official_usd_rate:
-            # Calculate total gold value by combining both 24k and 21k holdings
-            total_gold_value_egp = 0.0
-            if gold_holdings_24k and gold_price_24k:
-                total_gold_value_egp += gold_holdings_24k * gold_price_24k
-            if gold_holdings_21k and gold_price_21k:
-                total_gold_value_egp += gold_holdings_21k * gold_price_21k
-            # Round the final total to avoid floating point precision issues
-            total_gold_value_egp = round(total_gold_value_egp, 2)
+        try:
+            # Get 24k gold holdings (optional)
+            gold_holdings_24k = None
+            if request.form.get("gold_holdings_24k"):
+                try:
+                    value = float(request.form["gold_holdings_24k"])
+                    if value < 0:
+                        return render_template("index.html", error="Gold 24k holdings cannot be negative.", csrf_token=get_csrf_token())
+                    gold_holdings_24k = round(value, 2)
+                except ValueError:
+                    return render_template("index.html", error="Gold 24k holdings must be a valid number.", csrf_token=get_csrf_token())
             
-            total_usd_value_egp = round(usd_balance * official_usd_rate, 2)
-            total_wealth_egp = round(total_gold_value_egp + total_usd_value_egp, 2)
+            # Get 21k gold holdings (optional)
+            gold_holdings_21k = None
+            if request.form.get("gold_holdings_21k"):
+                try:
+                    value = float(request.form["gold_holdings_21k"])
+                    if value < 0:
+                        return render_template("index.html", error="Gold 21k holdings cannot be negative.", csrf_token=get_csrf_token())
+                    gold_holdings_21k = round(value, 2)
+                except ValueError:
+                    return render_template("index.html", error="Gold 21k holdings must be a valid number.", csrf_token=get_csrf_token())
+            
+            # USD balance is required
+            if not request.form.get("usd_balance"):
+                return render_template("index.html", error="USD Balance is required.", csrf_token=get_csrf_token())
+            
+            try:
+                usd_value = float(request.form["usd_balance"])
+                if usd_value < 0:
+                    return render_template("index.html", error="USD Balance cannot be negative.", csrf_token=get_csrf_token())
+                usd_balance = round(usd_value, 2)
+            except ValueError:
+                return render_template("index.html", error="USD Balance must be a valid number.", csrf_token=get_csrf_token())
+
+            # Fetch both 24k and 21k gold prices
+            gold_price_24k, gold_price_21k = get_gold_price()
+            official_usd_rate = get_official_usd_rate()
+
+            if (gold_price_24k or gold_price_21k) and official_usd_rate:
+                # Calculate total gold value by combining both 24k and 21k holdings
+                total_gold_value_egp = 0.0
+                if gold_holdings_24k and gold_price_24k:
+                    total_gold_value_egp += gold_holdings_24k * gold_price_24k
+                if gold_holdings_21k and gold_price_21k:
+                    total_gold_value_egp += gold_holdings_21k * gold_price_21k
+                # Round the final total to avoid floating point precision issues
+                total_gold_value_egp = round(total_gold_value_egp, 2)
+                
+                total_usd_value_egp = round(usd_balance * official_usd_rate, 2)
+                total_wealth_egp = round(total_gold_value_egp + total_usd_value_egp, 2)
 
             current_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             save_to_excel(
@@ -165,7 +221,7 @@ def index():
         
         data.reverse()  # Reverse the order to show latest details on top
 
-    return render_template("index.html", headers=headers, data=data)
+    return render_template("index.html", headers=headers, data=data, csrf_token=get_csrf_token())
 
 @app.route("/telegram-webhook", methods=["POST"])
 def telegram_webhook():
@@ -209,27 +265,44 @@ def paypal_check():
 @app.route("/delete/<timestamp>", methods=["DELETE"])
 @login_required
 def delete_entry(timestamp):
-    file_path = "financial_summary.xlsx"
-    if os.path.exists(file_path):
-        workbook = load_workbook(file_path)
-        sheet = workbook.active
-        headers = [cell.value for cell in sheet[1]]
+    try:
+        if not timestamp or len(timestamp) == 0:
+            return jsonify({"error": "Invalid timestamp"}), 400
         
-        # Find timestamp column by name instead of index
-        timestamp_col_index = get_column_index(headers, COL_TIMESTAMP)
-        if timestamp_col_index is None:
-            # Fallback: try to find by old column name
-            timestamp_col_index = get_column_index(headers, "Date")
+        file_path = "financial_summary.xlsx"
+        if not os.path.exists(file_path):
+            return jsonify({"error": "No data file found"}), 404
+        
+        try:
+            workbook = load_workbook(file_path)
+            sheet = workbook.active
+            headers = [cell.value for cell in sheet[1]]
+            
+            # Find timestamp column by name instead of index
+            timestamp_col_index = get_column_index(headers, COL_TIMESTAMP)
             if timestamp_col_index is None:
-                timestamp_col_index = 0  # Final fallback to first column
-        
-        # Search for matching timestamp
-        for row in sheet.iter_rows(min_row=2):  # Skip header row
-            if row[timestamp_col_index].value == timestamp:
-                sheet.delete_rows(row[timestamp_col_index].row)
-                workbook.save(file_path)
-                return jsonify(success=True)
-    return jsonify(success=False), 404
+                # Fallback: try to find by old column name
+                timestamp_col_index = get_column_index(headers, "Date")
+                if timestamp_col_index is None:
+                    timestamp_col_index = 0  # Final fallback to first column
+            
+            # Search for matching timestamp
+            found = False
+            for row in sheet.iter_rows(min_row=2):  # Skip header row
+                if row[timestamp_col_index].value == timestamp:
+                    sheet.delete_rows(row[timestamp_col_index].row)
+                    workbook.save(file_path)
+                    found = True
+                    break
+            
+            if not found:
+                return jsonify({"error": "Entry not found"}), 404
+            
+            return jsonify(success=True)
+        except Exception as e:
+            return jsonify({"error": f"Database error: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"error": "An unexpected error occurred"}), 500
 
 def background_price_checker():
     """Background thread to check prices periodically"""

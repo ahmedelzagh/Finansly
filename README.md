@@ -12,6 +12,7 @@ Finansly is a Python-based financial summary tool that helps users track their w
 - Ability to delete specific entries from the financial summary.
 - **Telegram notifications** with buy/sell signals based on real-world trading strategies (Moving Averages, RSI, Support/Resistance).
 - **PayPal transfer calculator** - Telegram bot command to check if manual transfer (125 EGP tax) is worth it vs waiting for auto-transfer.
+- **Security features**: CSRF protection, secure session handling, input validation, and webhook verification.
 
 ## Requirements
 
@@ -75,11 +76,13 @@ Finansly is a Python-based financial summary tool that helps users track their w
 ## Telegram Features
 
 ### Price Alerts
-The app automatically monitors prices every 8 hours and sends Telegram notifications when buy/sell signals are detected based on:
-- Moving Averages (trend analysis)
-- RSI (momentum indicator)
-- Support/Resistance levels
-- Multiple confirmation requirements for reliability
+The app automatically monitors prices every 8 hours and sends a **single daily Telegram notification** (around 6 PM Cairo time) with a consolidated summary including:
+- Current prices (Gold 24k, USD/EGP, GBP/EGP)
+- Buy/sell signals based on technical analysis:
+  - Moving Averages (trend analysis)
+  - RSI (momentum indicator)
+  - Support/Resistance levels
+  - Multiple confirmation requirements for reliability
 
 ### PayPal Transfer Calculator
 Use the Telegram bot command to check if manual PayPal transfer is worth it:
@@ -100,6 +103,19 @@ python setup_webhook.py
 ```
 
 Make sure your Flask app is running and accessible at the `WEBHOOK_URL` you configured.
+
+## Security
+
+Finansly implements comprehensive security measures:
+
+- **CSRF Protection**: All forms include CSRF tokens validated on submission
+- **Session Security**: 
+  - HTTPOnly cookies prevent JavaScript access
+  - SameSite=Lax protects against CSRF attacks
+  - Secure flag enforces HTTPS in production
+- **Input Validation**: All form inputs are validated with user-friendly error messages
+- **Webhook Verification**: Telegram webhook requests are verified using X-Telegram-Bot-API-Secret-Token
+- **Credential Requirements**: APP_USERNAME and APP_PASSWORD must be explicitly set in environment variables (no weak defaults)
 
 ## Example
 
