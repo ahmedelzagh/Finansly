@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from financial_utils import (
     get_gold_price, get_official_usd_rate, save_to_excel,
     detect_excel_format, normalize_row_to_new_format, get_column_index,
-    round_numeric_value, NEW_FORMAT_HEADERS, COL_TIMESTAMP
+    round_numeric_value, NEW_FORMAT_HEADERS, COL_TIMESTAMP, ensure_excel_format_migrated
 )
 from price_tracker import check_all_prices
 
@@ -21,6 +21,9 @@ app = Flask(__name__)
 app.config["SESSION_TYPE"] = "filesystem"
 app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())
 Session(app)
+
+# Ensure Excel file is properly migrated on startup
+ensure_excel_format_migrated("financial_summary.xlsx")
 
 # Authentication credentials from environment variables
 APP_USERNAME = os.getenv("APP_USERNAME", "admin")

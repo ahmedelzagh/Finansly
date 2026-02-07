@@ -188,6 +188,38 @@ def _migrate_old_row_to_new_format(old_row):
         # Row already has 10 or different column count, return as-is
         return list(old_row) + [None] * (10 - len(old_row))
 
+def ensure_excel_format_migrated(file_path):
+    """
+    Ensures Excel file has been migrated from old format to new format.
+    Checks if any rows still have 8 columns (old format) and migrates them if needed.
+    This should be called on app startup to fix any files with old rows that weren't migrated.
+    """
+    if not os.path.exists(file_path):
+        return
+    
+    workbook = load_workbook(file_path)
+    sheet = workbook.active
+    headers = [cell.value for cell in sheet[1]]
+    
+    # If headers are already new format but some rows are still old format, migrate them
+    if len(headers) == 10 and headers == NEW_FORMAT_HEADERS:
+        needs_migration = False
+        old_rows = []
+        
+        # Check if any rows need migration
+        for row in sheet.iter_rows(min_row=2, values_only=True):
+            if row and len(row) == 8:
+                needs_migration = True
+                old_rows.append(row)
+        
+        if needs_migration:
+            # Clear and re-populate with migrated rows
+            sheet.delete_rows(2, sheet.max_row)
+            for old_row in old_rows:
+                migrated_row = _migrate_old_row_to_new_format(old_row)
+                sheet.append(migrated_row)
+            workbook.save(file_path)
+
 # Function to detect Excel file format (old or new)
 def detect_excel_format(file_path):
     """
