@@ -118,7 +118,7 @@ def get_gbp_rate():
 def save_to_excel(timestamp, gold_holdings_24k, gold_holdings_21k, usd_balance, gold_price_24k, gold_price_21k, official_usd_rate, total_gold_value_egp, total_usd_value_egp, total_wealth_egp):
     """
     Saves financial data to Excel file with new format (10 columns).
-    If file exists with old format, updates headers to new format.
+    If file exists with old format, migrates existing rows to new format.
     """
     file_path = "financial_summary.xlsx"
     
@@ -128,9 +128,23 @@ def save_to_excel(timestamp, gold_holdings_24k, gold_holdings_21k, usd_balance, 
         # Check if headers need to be updated (old format detection)
         existing_headers = [cell.value for cell in sheet[1]]
         if len(existing_headers) == 8 and existing_headers == OLD_FORMAT_HEADERS:
+            # Migrate existing rows from old format to new format before header update
+            old_rows = []
+            for row in sheet.iter_rows(min_row=2, values_only=True):
+                if row:
+                    old_rows.append(row)
+            
+            # Clear existing data rows (keep header row)
+            sheet.delete_rows(2, sheet.max_row)
+            
             # Update headers to new format
             for col_idx, new_header in enumerate(NEW_FORMAT_HEADERS, start=1):
                 sheet.cell(row=1, column=col_idx, value=new_header)
+            
+            # Re-insert migrated rows with new format structure
+            for old_row in old_rows:
+                migrated_row = _migrate_old_row_to_new_format(old_row)
+                sheet.append(migrated_row)
     else:
         workbook = Workbook()
         sheet = workbook.active
@@ -150,6 +164,29 @@ def save_to_excel(timestamp, gold_holdings_24k, gold_holdings_21k, usd_balance, 
         total_wealth_egp
     ])
     workbook.save(file_path)
+
+def _migrate_old_row_to_new_format(old_row):
+    """
+    Converts an old format row (8 columns) to new format (10 columns).
+    Returns a list with 10 values in correct order.
+    """
+    if len(old_row) == 8:
+        # Mapping: old_row[0]=Date, [1]=Gold, [2]=USD, [3]=Gold Price, [4]=USD Rate, [5]=Gold Value, [6]=USD Value, [7]=Wealth
+        return [
+            old_row[0],      # Timestamp (Date)
+            old_row[1],      # Gold Holdings 24k (was combined "Gold Holdings")
+            None,            # Gold Holdings 21k (not in old format)
+            old_row[2],      # USD Balance
+            old_row[3],      # Gold Price 24k (was "Gold Price")
+            None,            # Gold Price 21k (not in old format)
+            old_row[4],      # Official USD Rate
+            old_row[5],      # Total Gold Value
+            old_row[6],      # Total USD Value
+            old_row[7]       # Total Wealth
+        ]
+    else:
+        # Row already has 10 or different column count, return as-is
+        return list(old_row) + [None] * (10 - len(old_row))
 
 # Function to detect Excel file format (old or new)
 def detect_excel_format(file_path):
@@ -172,31 +209,21 @@ def detect_excel_format(file_path):
         # Unknown format, default to new
         return 'new'
 
-# Function to normalize old format row to new format
+# Function to normalize rows to new format (all rows should now be 10 columns after migration)
 def normalize_row_to_new_format(row, headers):
     """
-    Converts a row from old format (8 columns) to new format (10 columns).
-    Returns a dictionary with column names as keys.
+    Converts a row to a dictionary with column names as keys.
+    Since save_to_excel() migrates old rows, all rows should now have 10 columns.
     """
-    if len(headers) == 8 and len(row) == 8:
-        # Old format detected
-        return {
-            COL_TIMESTAMP: row[0],  # Date -> Timestamp
-            COL_GOLD_24K_HOLDINGS: row[1],  # Gold Holdings (grams) -> Gold Holdings 24k (grams)
-            COL_GOLD_21K_HOLDINGS: None,  # Not in old format
-            COL_USD_BALANCE: row[2],
-            COL_GOLD_24K_PRICE: row[3],  # Gold Price (EGP/gm) -> Gold Price 24k (EGP/gm)
-            COL_GOLD_21K_PRICE: None,  # Not in old format
-            COL_OFFICIAL_USD_RATE: row[4],
-            COL_TOTAL_GOLD_VALUE: row[5],
-            COL_TOTAL_USD_VALUE: row[6],
-            COL_TOTAL_WEALTH: row[7]
-        }
-    elif len(headers) == 10 and len(row) == 10:
-        # New format - convert to dictionary
+    if len(row) == 10:
+        # All rows should be in new format after migration
         return dict(zip(headers, row))
+    elif len(row) < 10:
+        # Fallback for any edge cases: pad with None
+        padded_row = list(row) + [None] * (10 - len(row))
+        return dict(zip(headers, padded_row))
     else:
-        # Unknown format, return as dictionary
+        # Row has more than expected columns, return as dictionary
         return dict(zip(headers, row))
 
 # Function to get column index by name
