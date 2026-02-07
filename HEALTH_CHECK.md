@@ -109,25 +109,25 @@ Date: 2026-02-07
 - Fix Excel header upgrade bug that corrupts historical data
 - Files: financial_utils.py, app.py
 - Impact: Data integrity for users
-- Status: Not started
+- Status: Completed (merged to main)
 
 **Branch: `fixup/webhook-security`**
 - Add Telegram webhook request verification (secret token)
 - Files: app.py, telegram_bot.py
 - Impact: Production deployment safety
-- Status: Not started
+- Status: Completed (merged to main)
 
 **Branch: `fixup/credentials-config`**
 - Remove weak defaults (admin/password123); require env vars
 - Files: app.py, .env.example
 - Impact: Security baseline
-- Status: Not started
+- Status: Completed (merged to main)
 
 **Branch: `fixup/delete-url-encoding`**
 - URL-encode timestamps in delete endpoint (handle spaces/colons)
 - Files: templates/index.html
 - Impact: User-facing delete functionality
-- Status: Not started
+- Status: Ready for merge (after verification)
 
 ### Phase 2: Documentation & Configuration (Quick Wins)
 **Branch: `docs/readme-alignment`**
