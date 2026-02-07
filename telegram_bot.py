@@ -4,6 +4,8 @@ Handles bot commands like /paypal <amount>
 """
 import os
 import json
+import hmac
+import hashlib
 from flask import request, jsonify
 from dotenv import load_dotenv
 from telegram_utils import send_telegram_message, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
@@ -11,13 +13,51 @@ from paypal_transfer_calculator import check_paypal_transfer, format_paypal_tran
 
 load_dotenv()
 
+# Webhook secret token from environment
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
+
+
+def verify_telegram_webhook(data_bytes, secret_hash_header):
+    """
+    Verify Telegram webhook request using X-Telegram-Bot-API-Secret-Hash header.
+    Returns True if signature is valid, False otherwise.
+    
+    If TELEGRAM_WEBHOOK_SECRET is not configured, returns True (no verification).
+    """
+    if not TELEGRAM_WEBHOOK_SECRET:
+        # No secret configured, skip verification
+        return True
+    
+    if not secret_hash_header:
+        # No signature provided when secret is configured
+        return False
+    
+    # Calculate expected hash: HMAC-SHA256(data, secret)
+    expected_hash = hmac.new(
+        TELEGRAM_WEBHOOK_SECRET.encode(),
+        data_bytes,
+        hashlib.sha256
+    ).hexdigest()
+    
+    # Compare hashes (constant time to prevent timing attacks)
+    return hmac.compare_digest(expected_hash, secret_hash_header)
+
 
 def handle_telegram_webhook():
     """
-    Handle incoming Telegram webhook messages
-    Processes bot commands and sends responses
+    Handle incoming Telegram webhook messages.
+    Verifies request signature before processing.
+    Processes bot commands and sends responses.
     """
     try:
+        # Get raw request data for signature verification
+        data_bytes = request.get_data()
+        secret_hash = request.headers.get("X-Telegram-Bot-API-Secret-Hash", "")
+        
+        # Verify webhook authenticity
+        if not verify_telegram_webhook(data_bytes, secret_hash):
+            return jsonify({"error": "Invalid signature"}), 403
+        
         data = request.get_json()
         
         # Telegram sends updates in this format
