@@ -101,4 +101,73 @@ Date: 2026-02-07
 - Split webhook logic into a separate blueprint/module and add auth checks.
 
 ---
+
+## Fix Plan — Organized by Priority & Phases
+
+### Phase 1: Critical Security/Data Fixes (Do First)
+**Branch: `fixup/excel-data-migration`**
+- Fix Excel header upgrade bug that corrupts historical data
+- Files: financial_utils.py, app.py
+- Impact: Data integrity for users
+- Status: Not started
+
+**Branch: `fixup/webhook-security`**
+- Add Telegram webhook request verification (secret token)
+- Files: app.py, telegram_bot.py
+- Impact: Production deployment safety
+- Status: Not started
+
+**Branch: `fixup/credentials-config`**
+- Remove weak defaults (admin/password123); require env vars
+- Files: app.py, .env.example
+- Impact: Security baseline
+- Status: Not started
+
+**Branch: `fixup/delete-url-encoding`**
+- URL-encode timestamps in delete endpoint (handle spaces/colons)
+- Files: templates/index.html
+- Impact: User-facing delete functionality
+- Status: Not started
+
+### Phase 2: Documentation & Configuration (Quick Wins)
+**Branch: `docs/readme-alignment`**
+- Fix README: Change "every 30 minutes" to "every 8 hours"
+- Add beautifulsoup4 to install section
+- Files: README.md
+- Status: Not started
+
+**Branch: `cleanup/redis-decision`**
+- Remove unused Redis from docker-compose OR document its purpose
+- Files: docker-compose.yml, app.py, README.md
+- Status: Not started
+
+### Phase 3: Session & Input Hardening (Medium Priority)
+**Branch: `feat/session-hardening`**
+- Add CSRF protection to forms (Flask-WTF or token-based)
+- Improve session cookie security (HTTPOnly, SameSite, Secure flags)
+- Files: app.py, templates/index.html, templates/login.html
+- Status: Not started
+
+**Branch: `cleanup/input-validation`**
+- Add try/except error handling for form input parsing
+- Return 400 with user-friendly messages instead of 500 errors
+- Files: app.py (form processing sections)
+- Status: Not started
+
+### Phase 4: Testing & Quality
+**Branch: `feat/test-suite`**
+- Add unit tests for financial_utils.py (helpers, calculations)
+- Add tests for PayPal transfer calculator
+- Add tests for delete endpoint behavior
+- Files: tests/ (new directory), test files
+- Status: Not started
+
+### Execution Order
+1. Phase 1 (Critical) → 4 branches
+2. Phase 2 (Quick wins) → 2 branches
+3. Phase 3 (Hardening) → 2 branches
+4. Phase 4 (Testing) → 1 branch
+5. **Total: 9 feature/fix branches to create and merge**
+
+---
 End of report.
