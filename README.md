@@ -11,7 +11,7 @@ Finansly is a Python-based financial summary tool that helps users track their w
 - Web interface to input data and view financial summaries.
 - Ability to delete specific entries from the financial summary.
 - **Telegram notifications** with buy/sell signals based on real-world trading strategies (Moving Averages, RSI, Support/Resistance).
-- **PayPal transfer calculator** - Telegram bot command to check if manual transfer (150 EGP tax) is worth it vs waiting for auto-transfer.
+- **PayPal transfer calculator** - Telegram bot command to check if manual transfer (125 EGP tax) is worth it vs waiting for auto-transfer.
 
 ## Requirements
 
@@ -34,7 +34,7 @@ Finansly is a Python-based financial summary tool that helps users track their w
 2. Install the required libraries:
 
    ```sh
-   pip install requests openpyxl python-dotenv flask flask-session
+   pip install requests beautifulsoup4 openpyxl python-dotenv flask flask-session
    ```
 
 3. Create a `.env` file in the project directory and add your configuration:
@@ -75,7 +75,7 @@ Finansly is a Python-based financial summary tool that helps users track their w
 ## Telegram Features
 
 ### Price Alerts
-The app automatically monitors prices every 30 minutes and sends Telegram notifications when buy/sell signals are detected based on:
+The app automatically monitors prices every 8 hours and sends Telegram notifications when buy/sell signals are detected based on:
 - Moving Averages (trend analysis)
 - RSI (momentum indicator)
 - Support/Resistance levels
@@ -91,7 +91,7 @@ Use the Telegram bot command to check if manual PayPal transfer is worth it:
 Example: `/paypal 1000`
 
 This calculates whether to:
-- Transfer manually now (150 EGP tax)
+- Transfer manually now (125 EGP tax)
 - OR wait for auto-transfer on 1st of month (no tax)
 
 **Setup Telegram Webhook:**
