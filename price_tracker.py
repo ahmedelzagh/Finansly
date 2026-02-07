@@ -6,7 +6,7 @@ import json
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from financial_utils import get_gold_price, get_official_usd_rate, get_gbp_rate
+from financial_utils import get_gold_price, get_official_usd_rate, get_gbp_rate, save_to_excel, get_last_holdings
 from telegram_utils import send_telegram_message, format_price_alert
 from trading_strategy import get_trading_signal, find_support_resistance
 
@@ -78,7 +78,7 @@ def record_daily_notification(now_local):
     save_daily_notification(tracking)
 
 
-def _format_daily_summary_message(now_local, gold_price_24k, usd_rate, gbp_rate, gold_candidate, fx_candidates):
+def _format_daily_summary_message(now_local, gold_price_24k, usd_rate, gbp_rate, gold_candidate, fx_candidates, wealth_data=None):
     """Build a concise daily summary message."""
     date_str = now_local.strftime("%Y-%m-%d")
     lines = [f"🕕 <b>DAILY SUMMARY</b> ({date_str})", "=" * 40]
@@ -94,6 +94,11 @@ def _format_daily_summary_message(now_local, gold_price_24k, usd_rate, gbp_rate,
         lines.append(f"• GBP/EGP: {gbp_rate:.2f}")
 
     lines.append("")
+
+    # Wealth snapshot
+    if wealth_data:
+        lines.append(f"💎 <b>Total Wealth:</b> {wealth_data['total']:,.2f} EGP")
+        lines.append("")
 
     # Signals summary
     signals = []
@@ -391,15 +396,66 @@ def format_trading_alert(asset_type, action, current_price, analysis):
     return message
 
 
+def _save_daily_wealth_snapshot(now_local, gold_price_24k, gold_price_21k, usd_rate):
+    """
+    Saves a daily wealth snapshot using the last entered holdings.
+    Called once per day when daily notification is sent.
+    Returns wealth data dict for including in daily summary message.
+    """
+    if gold_price_24k is None or usd_rate is None:
+        print("Skipping wealth snapshot: missing price data")
+        return None
+    
+    holdings = get_last_holdings()
+    gold_24k = holdings.get("gold_24k") or 0
+    gold_21k = holdings.get("gold_21k") or 0
+    usd_balance = holdings.get("usd_balance") or 0
+    
+    # Skip if no holdings found
+    if gold_24k == 0 and gold_21k == 0 and usd_balance == 0:
+        print("Skipping wealth snapshot: no holdings found")
+        return None
+    
+    # Calculate values
+    gold_value_24k = round(gold_24k * gold_price_24k, 2) if gold_24k else 0
+    gold_value_21k = round(gold_21k * (gold_price_21k or gold_price_24k * 21/24), 2) if gold_21k else 0
+    total_gold_value = round(gold_value_24k + gold_value_21k, 2)
+    total_usd_value = round(usd_balance * usd_rate, 2) if usd_balance else 0
+    total_wealth = round(total_gold_value + total_usd_value, 2)
+    
+    timestamp = now_local.strftime("%Y-%m-%d %H:%M:%S")
+    
+    save_to_excel(
+        timestamp=timestamp,
+        gold_holdings_24k=gold_24k,
+        gold_holdings_21k=gold_21k,
+        usd_balance=usd_balance,
+        gold_price_24k=gold_price_24k,
+        gold_price_21k=gold_price_21k,
+        official_usd_rate=usd_rate,
+        total_gold_value_egp=total_gold_value,
+        total_usd_value_egp=total_usd_value,
+        total_wealth_egp=total_wealth
+    )
+    print(f"Auto-saved daily wealth snapshot: {total_wealth} EGP")
+    
+    return {
+        "gold_value": total_gold_value,
+        "usd_value": total_usd_value,
+        "total": total_wealth
+    }
+
+
 def check_all_prices():
     """
     Check all tracked prices and send notifications if needed.
+    Also saves daily wealth snapshot using last entered holdings.
     This is the main function to call periodically.
     """
     now_local = datetime.now(ZoneInfo(DAILY_TIMEZONE))
 
     # Gold: only track 24k (same signal direction as 21k for our purposes)
-    gold_price_24k, _gold_price_21k = get_gold_price()
+    gold_price_24k, gold_price_21k = get_gold_price()
     gold_candidate = None
     if gold_price_24k:
         gold_candidate = _get_signal_candidate("gold_24k", "Gold 24k (EGP/gm)", gold_price_24k)
@@ -422,13 +478,17 @@ def check_all_prices():
     if not should_send_daily_notification(now_local):
         return
 
+    # Auto-save daily wealth snapshot using last entered holdings
+    wealth_data = _save_daily_wealth_snapshot(now_local, gold_price_24k, gold_price_21k, usd_rate)
+
     msg = _format_daily_summary_message(
         now_local,
         gold_price_24k,
         usd_rate,
         gbp_rate,
         gold_candidate,
-        fx_candidates
+        fx_candidates,
+        wealth_data
     )
 
     if send_telegram_message(msg):

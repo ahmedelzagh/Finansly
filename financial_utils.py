@@ -127,6 +127,35 @@ def save_to_excel(timestamp, gold_holdings_24k, gold_holdings_21k, usd_balance, 
     ])
     workbook.save(file_path)
 
+def get_last_holdings(file_path="financial_summary.xlsx"):
+    """
+    Gets the most recent gold and USD holdings from the Excel file.
+    Returns a dict with gold_24k, gold_21k, usd_balance or None values if not found.
+    """
+    if not os.path.exists(file_path):
+        return {"gold_24k": None, "gold_21k": None, "usd_balance": None}
+    
+    try:
+        workbook = load_workbook(file_path)
+        sheet = workbook.active
+        
+        # Find the last non-empty row
+        last_row = None
+        for row in sheet.iter_rows(min_row=2, values_only=True):
+            if row and any(cell is not None for cell in row):
+                last_row = row
+        
+        if last_row and len(last_row) >= 4:
+            return {
+                "gold_24k": last_row[1],  # COL_GOLD_24K_HOLDINGS index
+                "gold_21k": last_row[2],  # COL_GOLD_21K_HOLDINGS index
+                "usd_balance": last_row[3]  # COL_USD_BALANCE index
+            }
+    except Exception as e:
+        print(f"Error reading last holdings: {e}")
+    
+    return {"gold_24k": None, "gold_21k": None, "usd_balance": None}
+
 # Function to normalize rows to dictionary format
 def normalize_row_to_new_format(row, headers):
     """
