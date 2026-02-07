@@ -11,6 +11,7 @@ GOLD_API_KEY = os.getenv("GOLD_API_KEY")
 # API Endpoints
 GOLD_API_URL = "https://www.goldapi.io/api/XAU/EGP"
 CB_EGP_USD_URL = "https://api.exchangerate-api.com/v4/latest/USD"  # Central Bank Rate
+CB_EGP_GBP_URL = "https://api.exchangerate-api.com/v4/latest/GBP"  # GBP to EGP Rate
 
 # Constants
 TROY_OUNCE_TO_GRAM = 31.1035  # 1 Troy Ounce = 31.1035 grams
@@ -97,6 +98,20 @@ def get_official_usd_rate():
         return round(response.json()["rates"].get("EGP", 0), 2)
     except requests.exceptions.RequestException as e:
         print(f"Error fetching official USD rate: {e}")
+        return None
+
+# Function to fetch GBP to EGP rate
+def get_gbp_rate():
+    """
+    Fetches GBP to EGP exchange rate.
+    Returns the rate as a float or None on error.
+    """
+    try:
+        response = requests.get(CB_EGP_GBP_URL)
+        response.raise_for_status()
+        return round(response.json()["rates"].get("EGP", 0), 2)
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching GBP rate: {e}")
         return None
 
 # Function to save data to Excel

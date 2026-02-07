@@ -1,6 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_session import Session
 import os
+import threading
+import time
 from functools import wraps
 from openpyxl import load_workbook
 from datetime import datetime
@@ -10,6 +12,7 @@ from financial_utils import (
     detect_excel_format, normalize_row_to_new_format, get_column_index,
     round_numeric_value, NEW_FORMAT_HEADERS, COL_TIMESTAMP
 )
+from price_tracker import check_all_prices
 
 # Load environment variables
 load_dotenv()
@@ -158,6 +161,45 @@ def index():
 
     return render_template("index.html", headers=headers, data=data)
 
+@app.route("/telegram-webhook", methods=["POST"])
+def telegram_webhook():
+    """Handle Telegram bot webhook"""
+    from telegram_bot import handle_telegram_webhook
+    return handle_telegram_webhook()
+
+@app.route("/paypal-check", methods=["GET", "POST"])
+@login_required
+def paypal_check():
+    """Check PayPal transfer decision for given GBP amount (web interface)"""
+    from paypal_transfer_calculator import check_paypal_transfer
+    
+    if request.method == "POST":
+        try:
+            amount = float(request.form.get("amount", 0))
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid amount"}), 400
+    else:
+        try:
+            amount = float(request.args.get("amount", 0))
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid amount. Use ?amount=1000"}), 400
+    
+    if amount <= 0:
+        return jsonify({"error": "Amount must be greater than 0"}), 400
+    
+    # Calculate and send to Telegram
+    decision = check_paypal_transfer(amount, send_to_telegram=True)
+    
+    if decision:
+        return jsonify({
+            "success": True,
+            "message": "Check sent to Telegram",
+            "recommendation": decision["recommendation"],
+            "difference_egp": decision["difference"]
+        })
+    else:
+        return jsonify({"error": "Could not calculate transfer decision"}), 500
+
 @app.route("/delete/<timestamp>", methods=["DELETE"])
 @login_required
 def delete_entry(timestamp):
@@ -183,5 +225,27 @@ def delete_entry(timestamp):
                 return jsonify(success=True)
     return jsonify(success=False), 404
 
+def background_price_checker():
+    """Background thread to check prices periodically"""
+    # Wait a bit before starting to let Flask app initialize
+    time.sleep(30)
+    
+    # Check prices every 8 hours (to fit GoldAPI 100 req/month limit)
+    CHECK_INTERVAL = 8 * 60 * 60
+    
+    while True:
+        try:
+            check_all_prices()
+        except Exception as e:
+            print(f"Error in background price checker: {e}")
+        
+        time.sleep(CHECK_INTERVAL)
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Start background price checking thread
+    price_checker_thread = threading.Thread(target=background_price_checker, daemon=True)
+    price_checker_thread.start()
+    
+    # Run Flask app - bind to all interfaces for Docker
+    app.run(host='0.0.0.0', port=5000, debug=False)
