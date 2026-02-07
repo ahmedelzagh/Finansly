@@ -84,7 +84,8 @@
         });
       });
       function deleteEntry(timestamp) {
-        fetch(`/delete/${timestamp}`, {
+        const encodedTimestamp = encodeURIComponent(timestamp);
+        fetch(`/delete/${encodedTimestamp}`, {
           method: 'DELETE'
         }).then(response => {
           if (response.ok) {
