@@ -175,6 +175,8 @@ def index():
             session["total_wealth_egp"] = total_wealth_egp
 
             return redirect(url_for("index"))
+        except Exception as e:
+            return render_template("index.html", error=f"An error occurred: {str(e)}", csrf_token=get_csrf_token())
 
     # Load data from Excel with backward compatibility
     file_path = "financial_summary.xlsx"
