@@ -5,17 +5,19 @@ Uses real-world trading strategies: Moving Averages, RSI, Support/Resistance
 import json
 import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from financial_utils import get_gold_price, get_official_usd_rate, get_gbp_rate
 from telegram_utils import send_telegram_message, format_price_alert
 from trading_strategy import get_trading_signal, find_support_resistance
 
 # Configuration
 PRICE_HISTORY_FILE = "price_history.json"
-SIGNAL_TRACKING_FILE = "signal_tracking.json"  # Track last signals to avoid duplicates
+DAILY_NOTIFICATION_FILE = "daily_notification.json"  # Track daily summary sends
 MAX_HISTORY_ENTRIES = 200  # Keep more history for better analysis (need at least 30 for indicators)
 MIN_HISTORY_FOR_SIGNALS = 30  # Minimum history required before sending signals
-SIGNAL_COOLDOWN_HOURS = 6  # Don't send same signal type within this many hours
 MIN_VOLATILITY_RATIO = 0.005  # Require at least 0.5% range over lookback to consider signal (avoid noise)
+DAILY_NOTIFICATION_HOUR = 18  # 6pm Egypt time
+DAILY_TIMEZONE = "Africa/Cairo"
 
 
 def load_price_history():
@@ -38,66 +40,78 @@ def save_price_history(history):
         print(f"Error saving price history: {e}")
 
 
-def load_signal_tracking():
-    """Load signal tracking data"""
-    if os.path.exists(SIGNAL_TRACKING_FILE):
+def load_daily_notification():
+    """Load daily notification tracking data."""
+    if os.path.exists(DAILY_NOTIFICATION_FILE):
         try:
-            with open(SIGNAL_TRACKING_FILE, 'r') as f:
+            with open(DAILY_NOTIFICATION_FILE, "r") as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             return {}
     return {}
 
 
-def save_signal_tracking(tracking):
-    """Save signal tracking data"""
+def save_daily_notification(tracking):
+    """Save daily notification tracking data."""
     try:
-        with open(SIGNAL_TRACKING_FILE, 'w') as f:
+        with open(DAILY_NOTIFICATION_FILE, "w") as f:
             json.dump(tracking, f, indent=2)
     except IOError as e:
-        print(f"Error saving signal tracking: {e}")
+        print(f"Error saving daily notification: {e}")
 
 
-def should_send_signal(asset_type, signal_type):
-    """
-    Check if we should send a signal (avoid duplicates within cooldown period)
-    
-    Args:
-        asset_type: Asset type
-        signal_type: "BUY" or "SELL"
-        
-    Returns:
-        bool: True if signal should be sent
-    """
-    tracking = load_signal_tracking()
-    key = f"{asset_type}_{signal_type}"
-    
-    if key not in tracking:
-        return True
-    
-    last_signal_time = tracking[key]
-    from datetime import datetime, timedelta
-    
-    try:
-        last_time = datetime.strptime(last_signal_time, "%Y-%m-%d %H:%M:%S")
-        time_diff = datetime.now() - last_time
-        
-        # Only send if cooldown period has passed
-        if time_diff.total_seconds() < (SIGNAL_COOLDOWN_HOURS * 3600):
-            return False
-    except:
-        # If parsing fails, allow signal
-        pass
-    
-    return True
+def should_send_daily_notification(now_local):
+    """Return True if daily summary should be sent (once per day after 6pm Cairo time)."""
+    if now_local.hour < DAILY_NOTIFICATION_HOUR:
+        return False
+
+    tracking = load_daily_notification()
+    last_sent_date = tracking.get("last_sent_date")
+    today = now_local.strftime("%Y-%m-%d")
+
+    return last_sent_date != today
 
 
-def record_signal(asset_type, signal_type):
-    """Record that a signal was sent"""
-    tracking = load_signal_tracking()
-    key = f"{asset_type}_{signal_type}"
-    tracking[key] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    save_signal_tracking(tracking)
+def record_daily_notification(now_local):
+    """Record that today's daily summary was sent."""
+    tracking = {"last_sent_date": now_local.strftime("%Y-%m-%d")}
+    save_daily_notification(tracking)
+
+
+def _format_daily_summary_message(now_local, gold_price_24k, usd_rate, gbp_rate, gold_candidate, fx_candidates):
+    """Build a concise daily summary message."""
+    date_str = now_local.strftime("%Y-%m-%d")
+    lines = [f"🕕 <b>DAILY SUMMARY</b> ({date_str})", "=" * 40]
+    lines.append("")
+
+    # Prices snapshot
+    lines.append("💰 <b>Current Prices</b>")
+    if gold_price_24k is not None:
+        lines.append(f"• Gold 24k: {gold_price_24k:.2f} EGP/gm")
+    if usd_rate is not None:
+        lines.append(f"• USD/EGP: {usd_rate:.2f}")
+    if gbp_rate is not None:
+        lines.append(f"• GBP/EGP: {gbp_rate:.2f}")
+
+    lines.append("")
+
+    # Signals summary
+    signals = []
+    if gold_candidate:
+        signals.append(_format_signal_short(gold_candidate))
+    if fx_candidates:
+        for c in fx_candidates:
+            signals.append(_format_signal_short(c))
+
+    if signals:
+        lines.append("📊 <b>Signals</b>")
+        lines.extend(signals)
+    else:
+        lines.append("📊 <b>Signals</b>")
+        lines.append("• No strong signals today")
+
+    return "\n".join(lines)
+
 
 def _get_signal_candidate(asset_type, display_name, current_price):
     """
@@ -138,10 +152,6 @@ def _get_signal_candidate(asset_type, display_name, current_price):
 
     signal, analysis = get_trading_signal(price_history, current_price, MIN_HISTORY_FOR_SIGNALS)
     if not signal:
-        return None
-
-    # Respect cooldown per asset/signal
-    if not should_send_signal(asset_type, signal):
         return None
 
     return {
@@ -248,8 +258,7 @@ def check_and_notify(asset_type, display_name, current_price):
 
     # Short & concise message
     message = _format_signal_short(candidate)
-    if send_telegram_message(message):
-        record_signal(asset_type, candidate["signal"])
+    send_telegram_message(message)
 
 
 def format_trading_alert(asset_type, action, current_price, analysis):
@@ -387,6 +396,8 @@ def check_all_prices():
     Check all tracked prices and send notifications if needed.
     This is the main function to call periodically.
     """
+    now_local = datetime.now(ZoneInfo(DAILY_TIMEZONE))
+
     # Gold: only track 24k (same signal direction as 21k for our purposes)
     gold_price_24k, _gold_price_21k = get_gold_price()
     gold_candidate = None
@@ -407,14 +418,18 @@ def check_all_prices():
         if c:
             fx_candidates.append(c)
 
-    # Send at most 2 notifications per run: 1 gold + 1 combined FX
-    if gold_candidate:
-        msg = _format_signal_short(gold_candidate)
-        if send_telegram_message(msg):
-            record_signal(gold_candidate["asset_type"], gold_candidate["signal"])
+    # Daily summary notification (once per day after 6pm Egypt time)
+    if not should_send_daily_notification(now_local):
+        return
 
-    if fx_candidates:
-        msg = _format_fx_combined_short(fx_candidates)
-        if send_telegram_message(msg):
-            for c in fx_candidates:
-                record_signal(c["asset_type"], c["signal"])
+    msg = _format_daily_summary_message(
+        now_local,
+        gold_price_24k,
+        usd_rate,
+        gbp_rate,
+        gold_candidate,
+        fx_candidates
+    )
+
+    if send_telegram_message(msg):
+        record_daily_notification(now_local)

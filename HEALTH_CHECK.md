@@ -139,7 +139,7 @@ Date: 2026-02-07
 **Branch: `cleanup/redis-decision`**
 - Remove unused Redis from docker-compose OR document its purpose
 - Files: docker-compose.yml, app.py, README.md
-- Status: Not started
+- Status: Completed (removed Redis from docker-compose)
 
 ### Phase 3: Session & Input Hardening (Medium Priority)
 **Branch: `feat/session-hardening`**
