@@ -26,8 +26,11 @@ Session(app)
 ensure_excel_format_migrated("financial_summary.xlsx")
 
 # Authentication credentials from environment variables
-APP_USERNAME = os.getenv("APP_USERNAME", "admin")
-APP_PASSWORD = os.getenv("APP_PASSWORD", "password123")
+APP_USERNAME = os.getenv("APP_USERNAME")
+APP_PASSWORD = os.getenv("APP_PASSWORD")
+
+if not APP_USERNAME or not APP_PASSWORD:
+    raise RuntimeError("APP_USERNAME and APP_PASSWORD must be set in environment variables.")
 
 def login_required(f):
     """Decorator to protect routes that require authentication"""
