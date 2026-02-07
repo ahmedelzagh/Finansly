@@ -28,12 +28,7 @@ COL_TOTAL_GOLD_VALUE = "Total Gold Value (EGP)"
 COL_TOTAL_USD_VALUE = "Total USD Value (EGP)"
 COL_TOTAL_WEALTH = "Total Wealth (EGP)"
 
-# Old format column names (for backward compatibility)
-COL_OLD_DATE = "Date"
-COL_OLD_GOLD_HOLDINGS = "Gold Holdings (grams)"
-COL_OLD_GOLD_PRICE = "Gold Price (EGP/gm)"
-
-# New format headers (10 columns)
+# Format headers (10 columns)
 NEW_FORMAT_HEADERS = [
     COL_TIMESTAMP,
     COL_GOLD_24K_HOLDINGS,
@@ -41,18 +36,6 @@ NEW_FORMAT_HEADERS = [
     COL_USD_BALANCE,
     COL_GOLD_24K_PRICE,
     COL_GOLD_21K_PRICE,
-    COL_OFFICIAL_USD_RATE,
-    COL_TOTAL_GOLD_VALUE,
-    COL_TOTAL_USD_VALUE,
-    COL_TOTAL_WEALTH
-]
-
-# Old format headers (8 columns)
-OLD_FORMAT_HEADERS = [
-    COL_OLD_DATE,
-    COL_OLD_GOLD_HOLDINGS,
-    COL_USD_BALANCE,
-    COL_OLD_GOLD_PRICE,
     COL_OFFICIAL_USD_RATE,
     COL_TOTAL_GOLD_VALUE,
     COL_TOTAL_USD_VALUE,
@@ -117,34 +100,13 @@ def get_gbp_rate():
 # Function to save data to Excel
 def save_to_excel(timestamp, gold_holdings_24k, gold_holdings_21k, usd_balance, gold_price_24k, gold_price_21k, official_usd_rate, total_gold_value_egp, total_usd_value_egp, total_wealth_egp):
     """
-    Saves financial data to Excel file with new format (10 columns).
-    If file exists with old format, migrates existing rows to new format.
+    Saves financial data to Excel file (10 columns).
     """
     file_path = "financial_summary.xlsx"
     
     if os.path.exists(file_path):
         workbook = load_workbook(file_path)
         sheet = workbook.active
-        # Check if headers need to be updated (old format detection)
-        existing_headers = [cell.value for cell in sheet[1]]
-        if len(existing_headers) == 8 and existing_headers == OLD_FORMAT_HEADERS:
-            # Migrate existing rows from old format to new format before header update
-            old_rows = []
-            for row in sheet.iter_rows(min_row=2, values_only=True):
-                if row:
-                    old_rows.append(row)
-            
-            # Clear existing data rows (keep header row)
-            sheet.delete_rows(2, sheet.max_row)
-            
-            # Update headers to new format
-            for col_idx, new_header in enumerate(NEW_FORMAT_HEADERS, start=1):
-                sheet.cell(row=1, column=col_idx, value=new_header)
-            
-            # Re-insert migrated rows with new format structure
-            for old_row in old_rows:
-                migrated_row = _migrate_old_row_to_new_format(old_row)
-                sheet.append(migrated_row)
     else:
         workbook = Workbook()
         sheet = workbook.active
@@ -165,90 +127,13 @@ def save_to_excel(timestamp, gold_holdings_24k, gold_holdings_21k, usd_balance, 
     ])
     workbook.save(file_path)
 
-def _migrate_old_row_to_new_format(old_row):
-    """
-    Converts an old format row (8 columns) to new format (10 columns).
-    Returns a list with 10 values in correct order.
-    """
-    if len(old_row) == 8:
-        # Mapping: old_row[0]=Date, [1]=Gold, [2]=USD, [3]=Gold Price, [4]=USD Rate, [5]=Gold Value, [6]=USD Value, [7]=Wealth
-        return [
-            old_row[0],      # Timestamp (Date)
-            old_row[1],      # Gold Holdings 24k (was combined "Gold Holdings")
-            None,            # Gold Holdings 21k (not in old format)
-            old_row[2],      # USD Balance
-            old_row[3],      # Gold Price 24k (was "Gold Price")
-            None,            # Gold Price 21k (not in old format)
-            old_row[4],      # Official USD Rate
-            old_row[5],      # Total Gold Value
-            old_row[6],      # Total USD Value
-            old_row[7]       # Total Wealth
-        ]
-    else:
-        # Row already has 10 or different column count, return as-is
-        return list(old_row) + [None] * (10 - len(old_row))
-
-def ensure_excel_format_migrated(file_path):
-    """
-    Ensures Excel file has been migrated from old format to new format.
-    Checks if any rows still have 8 columns (old format) and migrates them if needed.
-    This should be called on app startup to fix any files with old rows that weren't migrated.
-    """
-    if not os.path.exists(file_path):
-        return
-    
-    workbook = load_workbook(file_path)
-    sheet = workbook.active
-    headers = [cell.value for cell in sheet[1]]
-    
-    # If headers are already new format but some rows are still old format, migrate them
-    if len(headers) == 10 and headers == NEW_FORMAT_HEADERS:
-        needs_migration = False
-        old_rows = []
-        
-        # Check if any rows need migration
-        for row in sheet.iter_rows(min_row=2, values_only=True):
-            if row and len(row) == 8:
-                needs_migration = True
-                old_rows.append(row)
-        
-        if needs_migration:
-            # Clear and re-populate with migrated rows
-            sheet.delete_rows(2, sheet.max_row)
-            for old_row in old_rows:
-                migrated_row = _migrate_old_row_to_new_format(old_row)
-                sheet.append(migrated_row)
-            workbook.save(file_path)
-
-# Function to detect Excel file format (old or new)
-def detect_excel_format(file_path):
-    """
-    Detects whether Excel file uses old format (8 columns) or new format (10 columns).
-    Returns 'old' or 'new'.
-    """
-    if not os.path.exists(file_path):
-        return 'new'  # Default to new format for new files
-    
-    workbook = load_workbook(file_path)
-    sheet = workbook.active
-    headers = [cell.value for cell in sheet[1]]
-    
-    if len(headers) == 8:
-        return 'old'
-    elif len(headers) == 10:
-        return 'new'
-    else:
-        # Unknown format, default to new
-        return 'new'
-
-# Function to normalize rows to new format (all rows should now be 10 columns after migration)
+# Function to normalize rows to dictionary format
 def normalize_row_to_new_format(row, headers):
     """
     Converts a row to a dictionary with column names as keys.
-    Since save_to_excel() migrates old rows, all rows should now have 10 columns.
+    All rows should have 10 columns.
     """
     if len(row) == 10:
-        # All rows should be in new format after migration
         return dict(zip(headers, row))
     elif len(row) < 10:
         # Fallback for any edge cases: pad with None

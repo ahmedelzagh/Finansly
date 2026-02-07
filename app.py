@@ -10,8 +10,11 @@ from dotenv import load_dotenv
 import secrets
 from financial_utils import (
     get_gold_price, get_official_usd_rate, save_to_excel,
-    detect_excel_format, normalize_row_to_new_format, get_column_index,
-    round_numeric_value, NEW_FORMAT_HEADERS, COL_TIMESTAMP, ensure_excel_format_migrated
+    normalize_row_to_new_format, get_column_index,
+    round_numeric_value, NEW_FORMAT_HEADERS, COL_TIMESTAMP,
+    COL_GOLD_24K_HOLDINGS, COL_GOLD_21K_HOLDINGS, COL_USD_BALANCE,
+    COL_GOLD_24K_PRICE, COL_GOLD_21K_PRICE, COL_OFFICIAL_USD_RATE,
+    COL_TOTAL_GOLD_VALUE, COL_TOTAL_USD_VALUE, COL_TOTAL_WEALTH
 )
 from price_tracker import check_all_prices
 
@@ -25,9 +28,6 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = True
 app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())
 Session(app)
-
-# Ensure Excel file is properly migrated on startup
-ensure_excel_format_migrated("financial_summary.xlsx")
 
 # Authentication credentials from environment variables
 APP_USERNAME = os.getenv("APP_USERNAME")
@@ -189,13 +189,8 @@ def index():
         sheet = workbook.active
         existing_headers = [cell.value for cell in sheet[1]]
         
-        # Normalize headers and data based on format
-        file_format = detect_excel_format(file_path)
-        if file_format == 'old':
-            # Use new format headers for display, but normalize old data
-            headers = NEW_FORMAT_HEADERS
-        else:
-            headers = existing_headers if len(existing_headers) == 10 else NEW_FORMAT_HEADERS
+        # Use existing headers or default to NEW_FORMAT_HEADERS
+        headers = existing_headers if len(existing_headers) == 10 else NEW_FORMAT_HEADERS
         
         # Get timestamp column index by name
         timestamp_col_index = get_column_index(headers, COL_TIMESTAMP)
@@ -230,6 +225,57 @@ def telegram_webhook():
     """Handle Telegram bot webhook"""
     from telegram_bot import handle_telegram_webhook
     return handle_telegram_webhook()
+
+@app.route("/analytics")
+@login_required
+def analytics():
+    """Analytics page"""
+    return render_template("analytics.html", csrf_token=get_csrf_token())
+
+@app.route("/api/analytics")
+@login_required
+def api_analytics():
+    """API endpoint to get analytics data"""
+    file_path = "financial_summary.xlsx"
+    data = []
+    
+    if os.path.exists(file_path):
+        try:
+            workbook = load_workbook(file_path)
+            sheet = workbook.active
+            headers = [cell.value for cell in sheet[1]]
+            
+            # Get column indices
+            timestamp_idx = get_column_index(headers, COL_TIMESTAMP)
+            gold_24k_holdings_idx = get_column_index(headers, COL_GOLD_24K_HOLDINGS)
+            gold_21k_holdings_idx = get_column_index(headers, COL_GOLD_21K_HOLDINGS)
+            usd_balance_idx = get_column_index(headers, COL_USD_BALANCE)
+            gold_24k_price_idx = get_column_index(headers, COL_GOLD_24K_PRICE)
+            gold_21k_price_idx = get_column_index(headers, COL_GOLD_21K_PRICE)
+            usd_rate_idx = get_column_index(headers, COL_OFFICIAL_USD_RATE)
+            gold_value_idx = get_column_index(headers, COL_TOTAL_GOLD_VALUE)
+            usd_value_idx = get_column_index(headers, COL_TOTAL_USD_VALUE)
+            total_wealth_idx = get_column_index(headers, COL_TOTAL_WEALTH)
+            
+            for row in sheet.iter_rows(min_row=2, values_only=True):
+                if row and any(cell is not None for cell in row):
+                    entry = {
+                        'timestamp': row[timestamp_idx] if timestamp_idx is not None else None,
+                        'gold_holdings_24k': row[gold_24k_holdings_idx] if gold_24k_holdings_idx is not None else None,
+                        'gold_holdings_21k': row[gold_21k_holdings_idx] if gold_21k_holdings_idx is not None else None,
+                        'usd_balance': row[usd_balance_idx] if usd_balance_idx is not None else None,
+                        'gold_price_24k': row[gold_24k_price_idx] if gold_24k_price_idx is not None else None,
+                        'gold_price_21k': row[gold_21k_price_idx] if gold_21k_price_idx is not None else None,
+                        'usd_rate': row[usd_rate_idx] if usd_rate_idx is not None else None,
+                        'gold_value': row[gold_value_idx] if gold_value_idx is not None else None,
+                        'usd_value': row[usd_value_idx] if usd_value_idx is not None else None,
+                        'total_wealth': row[total_wealth_idx] if total_wealth_idx is not None else None,
+                    }
+                    data.append(entry)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    return jsonify({'data': data})
 
 @app.route("/paypal-check", methods=["GET", "POST"])
 @login_required
