@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_session import Session
 import os
+import json
 import threading
 import time
 from functools import wraps
@@ -237,7 +238,17 @@ def analytics():
 def api_analytics():
     """API endpoint to get analytics data"""
     file_path = "financial_summary.xlsx"
+    price_history_path = "price_history.json"
     data = []
+    price_history = {}
+    
+    # Load price history for trend charts (more frequent data)
+    if os.path.exists(price_history_path):
+        try:
+            with open(price_history_path, 'r') as f:
+                price_history = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            price_history = {}
     
     if os.path.exists(file_path):
         try:
@@ -275,7 +286,10 @@ def api_analytics():
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
-    return jsonify({'data': data})
+    return jsonify({
+        'data': data,
+        'price_history': price_history
+    })
 
 @app.route("/paypal-check", methods=["GET", "POST"])
 @login_required

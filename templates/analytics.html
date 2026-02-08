@@ -872,11 +872,25 @@
         return data.filter((item) => new Date(item.timestamp) >= cutoffDate);
       }
 
+      // Filter price history by period
+      function filterPriceHistoryByPeriod(priceArray) {
+        if (!priceArray || !Array.isArray(priceArray)) return [];
+        if (currentPeriod === "all") return priceArray;
+
+        const days = parseInt(currentPeriod);
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - days);
+
+        return priceArray.filter((item) => new Date(item.timestamp) >= cutoffDate);
+      }
+
       // Update all charts
       function updateCharts() {
         if (!analyticsData || !analyticsData.data) return;
 
         const filteredData = filterDataByPeriod(analyticsData.data);
+        const priceHistory = analyticsData.price_history || {};
+        
         if (filteredData.length === 0) {
           showEmptyState(true);
           return;
@@ -886,8 +900,13 @@
         updateMetrics(filteredData);
         updateWealthChart(filteredData);
         updateCompositionChart(filteredData);
-        updateGoldPriceChart(filteredData);
-        updateUsdRateChart(filteredData);
+        
+        // Use price_history for trend charts (more frequent data)
+        const goldPriceData = filterPriceHistoryByPeriod(priceHistory.gold_24k);
+        const usdRateData = filterPriceHistoryByPeriod(priceHistory.usd);
+        
+        updateGoldPriceChart(goldPriceData.length > 0 ? goldPriceData : filteredData);
+        updateUsdRateChart(usdRateData.length > 0 ? usdRateData : filteredData);
       }
 
       // Update metrics
@@ -1068,7 +1087,9 @@
 
         if (charts.goldPrice) charts.goldPrice.destroy();
 
-        const goldData = data.filter((d) => d.gold_price_24k);
+        // Support both price_history format and wealth data format
+        const goldData = data.filter((d) => d.price || d.gold_price_24k);
+        const usesPriceHistory = goldData.length > 0 && goldData[0].price !== undefined;
 
         charts.goldPrice = new Chart(ctx, {
           type: "line",
@@ -1077,7 +1098,7 @@
             datasets: [
               {
                 label: "Gold 24K Price",
-                data: goldData.map((d) => d.gold_price_24k),
+                data: goldData.map((d) => usesPriceHistory ? d.price : d.gold_price_24k),
                 borderColor: "#FFD700",
                 backgroundColor: "rgba(255, 215, 0, 0.1)",
                 fill: true,
@@ -1134,7 +1155,9 @@
 
         if (charts.usdRate) charts.usdRate.destroy();
 
-        const usdData = data.filter((d) => d.usd_rate);
+        // Support both price_history format and wealth data format
+        const usdData = data.filter((d) => d.price || d.usd_rate);
+        const usesPriceHistory = usdData.length > 0 && usdData[0].price !== undefined;
 
         charts.usdRate = new Chart(ctx, {
           type: "line",
@@ -1143,7 +1166,7 @@
             datasets: [
               {
                 label: "USD/EGP Rate",
-                data: usdData.map((d) => d.usd_rate),
+                data: usdData.map((d) => usesPriceHistory ? d.price : d.usd_rate),
                 borderColor: "#4FC3F7",
                 backgroundColor: "rgba(79, 195, 247, 0.1)",
                 fill: true,
