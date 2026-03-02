@@ -7,6 +7,7 @@ from datetime import datetime
 # Load environment variables
 load_dotenv()
 GOLD_API_KEY = os.getenv("GOLD_API_KEY")
+GOLD_API_KEYS = os.getenv("GOLD_API_KEYS")
 
 # API Endpoints
 GOLD_API_URL = "https://www.goldapi.io/api/XAU/EGP"
@@ -43,18 +44,76 @@ NEW_FORMAT_HEADERS = [
 ]
 
 # Function to fetch gold prices in EGP per gram (both 24k and 21k)
+def _parse_gold_api_keys():
+    """
+    Returns a list of GoldAPI keys in priority order.
+
+    Supported env vars:
+    - GOLD_API_KEYS: comma-separated list (preferred)
+    - GOLD_API_KEY: single key (legacy fallback)
+    """
+    keys = []
+    if GOLD_API_KEYS:
+        keys.extend([k.strip() for k in GOLD_API_KEYS.split(",") if k.strip()])
+    if GOLD_API_KEY:
+        keys.append(GOLD_API_KEY.strip())
+
+    # de-dup while preserving order
+    seen = set()
+    unique = []
+    for k in keys:
+        if k not in seen:
+            unique.append(k)
+            seen.add(k)
+    return unique
+
+
+def _looks_like_quota_or_rate_limit(response):
+    if response is None:
+        return False
+    if getattr(response, "status_code", None) == 429:
+        return True
+    # Some APIs use 402/403 with quota messages; be conservative and only rotate on clear wording.
+    if getattr(response, "status_code", None) in (402, 403):
+        try:
+            data = response.json()
+        except Exception:
+            return False
+        msg = str(data.get("error") or data.get("message") or "").lower()
+        return any(word in msg for word in ("quota", "limit", "rate", "too many", "exceed"))
+    return False
+
+
 def get_gold_price():
     """
     Fetches both 24k and 21k gold prices from the API.
     Returns a tuple (price_24k, price_21k) or (None, None) on error.
     If 21k price is not available from API, calculates it as 21/24 of 24k price.
     """
-    headers = {
-        "x-access-token": GOLD_API_KEY,
-        "Content-Type": "application/json"
-    }
+    keys = _parse_gold_api_keys()
+    if not keys:
+        print("Warning: GoldAPI key not configured (set GOLD_API_KEY or GOLD_API_KEYS).")
+        return (None, None)
+
+    def _request_with_key(api_key):
+        headers = {
+            "x-access-token": api_key,
+            "Content-Type": "application/json",
+        }
+        return requests.get(GOLD_API_URL, headers=headers, timeout=10)
+
     try:
-        response = requests.get(GOLD_API_URL, headers=headers)
+        # Primary key
+        response = _request_with_key(keys[0])
+        if not response.ok and len(keys) > 1 and _looks_like_quota_or_rate_limit(response):
+            # Fallback: rotate to next key(s) only for quota/rate-limit type failures
+            last_status = response.status_code
+            for i, k in enumerate(keys[1:], start=2):
+                print(f"GoldAPI primary key quota/limit hit (status={last_status}). Retrying with key #{i}...")
+                response = _request_with_key(k)
+                if response.ok or not _looks_like_quota_or_rate_limit(response):
+                    break
+
         response.raise_for_status()
         data = response.json()
         price_gram_24k = data.get("price_gram_24k", None)

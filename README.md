@@ -41,6 +41,8 @@ Finansly is a Python-based financial summary tool that helps users track their w
 3. Create a `.env` file in the project directory and add your configuration:
    ```env
    GOLD_API_KEY=your_gold_api_key
+   # Optional: provide multiple keys (primary first). The app only rotates on quota/rate-limit errors.
+   # GOLD_API_KEYS=key1,key2
    APP_USERNAME=admin
    APP_PASSWORD=your_secure_password
    SECRET_KEY=your_secret_key_here
