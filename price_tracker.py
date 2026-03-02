@@ -6,6 +6,7 @@ import json
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from datetime import time as dt_time, timedelta
 from financial_utils import get_gold_price, get_official_usd_rate, get_gbp_rate, save_to_excel, get_last_holdings
 from telegram_utils import send_telegram_message, format_price_alert
 from trading_strategy import get_trading_signal, find_support_resistance
@@ -18,6 +19,45 @@ MIN_HISTORY_FOR_SIGNALS = 30  # Minimum history required before sending signals
 MIN_VOLATILITY_RATIO = 0.005  # Require at least 0.5% range over lookback to consider signal (avoid noise)
 DAILY_NOTIFICATION_HOUR = 18  # 6pm Egypt time
 DAILY_TIMEZONE = "Africa/Cairo"
+
+def _daily_summary_next_eligible(now_local):
+    """
+    Compute whether daily summary is eligible and the next eligible time.
+
+    Eligibility rules:
+    - Only after 6pm local time
+    - Only once per day (tracked in DAILY_NOTIFICATION_FILE)
+    """
+    tracking = load_daily_notification()
+    last_sent_date = tracking.get("last_sent_date")
+    today = now_local.strftime("%Y-%m-%d")
+
+    today_6pm = datetime.combine(now_local.date(), dt_time(DAILY_NOTIFICATION_HOUR, 0), tzinfo=now_local.tzinfo)
+
+    if last_sent_date == today:
+        next_eligible = today_6pm + timedelta(days=1)
+        eligible = False
+        reason = "already_sent_today"
+    elif now_local < today_6pm:
+        next_eligible = today_6pm
+        eligible = False
+        reason = "before_6pm"
+    else:
+        next_eligible = now_local
+        eligible = True
+        reason = "eligible_now"
+
+    remaining = next_eligible - now_local
+    if remaining.total_seconds() < 0:
+        remaining = timedelta(0)
+
+    return {
+        "eligible": eligible,
+        "reason": reason,
+        "last_sent_date": last_sent_date,
+        "next_eligible": next_eligible,
+        "remaining": remaining,
+    }
 
 
 def load_price_history():
@@ -453,6 +493,16 @@ def check_all_prices():
     This is the main function to call periodically.
     """
     now_local = datetime.now(ZoneInfo(DAILY_TIMEZONE))
+    daily_status = _daily_summary_next_eligible(now_local)
+    print(
+        "[DailySummary] "
+        f"now={now_local.strftime('%Y-%m-%d %H:%M:%S %Z')} "
+        f"eligible={daily_status['eligible']} "
+        f"reason={daily_status['reason']} "
+        f"last_sent_date={daily_status['last_sent_date']} "
+        f"next_eligible={daily_status['next_eligible'].strftime('%Y-%m-%d %H:%M:%S %Z')} "
+        f"time_left={str(daily_status['remaining'])}"
+    )
 
     # Gold: only track 24k (same signal direction as 21k for our purposes)
     gold_price_24k, gold_price_21k = get_gold_price()
