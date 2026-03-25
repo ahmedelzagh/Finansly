@@ -852,6 +852,7 @@
                   id="gold_holdings_24k" 
                   name="gold_holdings_24k" 
                   class="form-input"
+                  value="{{ session.gold_holdings_24k if session.gold_holdings_24k is not none else '' }}"
                   placeholder="0.00"
                 />
                 <p class="form-hint">Amount in grams</p>
@@ -865,6 +866,7 @@
                   id="gold_holdings_21k" 
                   name="gold_holdings_21k" 
                   class="form-input"
+                  value="{{ session.gold_holdings_21k if session.gold_holdings_21k is not none else '' }}"
                   placeholder="0.00"
                 />
                 <p class="form-hint">Amount in grams</p>
@@ -878,6 +880,7 @@
                   id="usd_balance" 
                   name="usd_balance" 
                   class="form-input"
+                  value="{{ session.usd_balance if session.usd_balance is not none else '' }}"
                   placeholder="0.00"
                   required 
                 />
@@ -1056,34 +1059,6 @@
     </div>
 
     <script>
-      // Local Storage for form values
-      document.addEventListener("DOMContentLoaded", function () {
-        const goldHoldings24k = localStorage.getItem("gold_holdings_24k");
-        const goldHoldings21k = localStorage.getItem("gold_holdings_21k");
-        const usdBalance = localStorage.getItem("usd_balance");
-
-        if (goldHoldings24k) {
-          document.getElementById("gold_holdings_24k").value = goldHoldings24k;
-        }
-        if (goldHoldings21k) {
-          document.getElementById("gold_holdings_21k").value = goldHoldings21k;
-        }
-        if (usdBalance) {
-          document.getElementById("usd_balance").value = usdBalance;
-        }
-
-        // Store values on form submit
-        document.getElementById("holdings-form").addEventListener("submit", function () {
-          const goldHoldings24kValue = document.getElementById("gold_holdings_24k").value;
-          const goldHoldings21kValue = document.getElementById("gold_holdings_21k").value;
-          const usdBalanceValue = document.getElementById("usd_balance").value;
-
-          localStorage.setItem("gold_holdings_24k", goldHoldings24kValue);
-          localStorage.setItem("gold_holdings_21k", goldHoldings21kValue);
-          localStorage.setItem("usd_balance", usdBalanceValue);
-        });
-      });
-
       // Delete functionality with confirmation
       let pendingDeleteTimestamp = null;
 
