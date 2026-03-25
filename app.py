@@ -6,7 +6,7 @@ import threading
 import time
 from functools import wraps
 from openpyxl import load_workbook
-from datetime import datetime, time, timedelta
+from datetime import datetime, time as dt_time, timedelta
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 import secrets
@@ -27,14 +27,14 @@ from price_tracker import (
 # Gold API: up to 4 calls/day at market-meaningful times (Europe/London + America/New_York, weekdays)
 _UTC = ZoneInfo("UTC")
 _GOLD_PRICE_SCHEDULE = (
-    (ZoneInfo("Europe/London"), time(10, 30)),
-    (ZoneInfo("Europe/London"), time(15, 0)),
-    (ZoneInfo("America/New_York"), time(8, 35)),
-    (ZoneInfo("America/New_York"), time(9, 35)),
+    (ZoneInfo("Europe/London"), dt_time(10, 30)),
+    (ZoneInfo("Europe/London"), dt_time(15, 0)),
+    (ZoneInfo("America/New_York"), dt_time(8, 35)),
+    (ZoneInfo("America/New_York"), dt_time(9, 35)),
 )
 
 
-def _next_slot_utc(zone: ZoneInfo, local_t: time, after_utc: datetime) -> datetime:
+def _next_slot_utc(zone: ZoneInfo, local_t: dt_time, after_utc: datetime) -> datetime:
     """Earliest UTC moment strictly after ``after_utc`` matching ``local_t`` in ``zone`` on Mon–Fri."""
     after_utc = after_utc.astimezone(_UTC)
     z_after = after_utc.astimezone(zone)
