@@ -4,6 +4,7 @@ import os
 import json
 import threading
 import time
+import math
 from functools import wraps
 from openpyxl import load_workbook
 from datetime import datetime, time as dt_time, timedelta
@@ -251,6 +252,23 @@ def index():
         
         data.reverse()  # Reverse the order to show latest details on top
 
+    # Pagination for history table
+    total_records = len(data)
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 10, type=int)
+
+    if page is None or page < 1:
+        page = 1
+    if per_page is None or per_page < 1 or per_page > 100:
+        per_page = 10
+
+    total_pages = max(1, math.ceil(total_records / per_page)) if per_page else 1
+    page = min(page, total_pages)
+
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    data = data[start_idx:end_idx]
+
     # Always load the latest snapshot from history so the "Current Holdings" card
     # doesn't rely on stale client-side cached values.
     last = get_last_holdings(file_path)
@@ -264,7 +282,16 @@ def index():
     session["total_usd_value_egp"] = last.get("total_usd_value_egp")
     session["total_wealth_egp"] = last.get("total_wealth_egp")
 
-    return render_template("index.html", headers=headers, data=data, csrf_token=get_csrf_token())
+    return render_template(
+        "index.html",
+        headers=headers,
+        data=data,
+        csrf_token=get_csrf_token(),
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages,
+        total_records=total_records,
+    )
 
 @app.route("/telegram-webhook", methods=["POST"])
 def telegram_webhook():

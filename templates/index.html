@@ -458,6 +458,50 @@
         border-radius: 20px;
       }
 
+      /* Pagination */
+      .pagination {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 10px;
+        padding: 16px;
+        border-top: 1px solid var(--border);
+      }
+
+      .page-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 14px;
+        border-radius: var(--radius-sm);
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 600;
+        transition: var(--transition);
+      }
+
+      .page-link:hover {
+        border-color: var(--border-light);
+        transform: translateY(-1px);
+      }
+
+      .page-disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none !important;
+      }
+
+      .page-current {
+        color: var(--text-muted);
+        font-size: 13px;
+        font-weight: 600;
+        padding: 0 6px;
+        text-align: center;
+      }
+
       /* Table Styles */
       .table-wrapper {
         background: var(--bg-secondary);
@@ -991,8 +1035,8 @@
       <section class="history-section">
         <div class="section-header">
           <h2 class="section-title">History</h2>
-          {% if data %}
-          <span class="record-count">{{ data|length }} record{% if data|length != 1 %}s{% endif %}</span>
+          {% if total_records %}
+          <span class="record-count">{{ total_records }} record{% if total_records != 1 %}s{% endif %}</span>
           {% endif %}
         </div>
 
@@ -1043,6 +1087,24 @@
           </div>
           {% endif %}
         </div>
+
+        {% if total_pages and total_pages > 1 %}
+        <div class="pagination">
+          {% if page > 1 %}
+          <a class="page-link" href="/?page={{ page - 1 }}&per_page={{ per_page }}">Previous</a>
+          {% else %}
+          <span class="page-link page-disabled">Previous</span>
+          {% endif %}
+
+          <span class="page-current">Page {{ page }} of {{ total_pages }}</span>
+
+          {% if page < total_pages %}
+          <a class="page-link" href="/?page={{ page + 1 }}&per_page={{ per_page }}">Next</a>
+          {% else %}
+          <span class="page-link page-disabled">Next</span>
+          {% endif %}
+        </div>
+        {% endif %}
       </section>
     </main>
 
