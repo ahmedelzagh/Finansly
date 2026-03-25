@@ -6,7 +6,8 @@ import threading
 import time
 from functools import wraps
 from openpyxl import load_workbook
-from datetime import datetime
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 import secrets
 from financial_utils import (
@@ -17,7 +18,37 @@ from financial_utils import (
     COL_GOLD_24K_PRICE, COL_GOLD_21K_PRICE, COL_OFFICIAL_USD_RATE,
     COL_TOTAL_GOLD_VALUE, COL_TOTAL_USD_VALUE, COL_TOTAL_WEALTH
 )
-from price_tracker import check_all_prices
+from price_tracker import (
+    check_all_prices,
+    next_daily_digest_utc,
+    send_daily_digest_from_cache_if_due,
+)
+
+# Gold API: up to 4 calls/day at market-meaningful times (Europe/London + America/New_York, weekdays)
+_UTC = ZoneInfo("UTC")
+_GOLD_PRICE_SCHEDULE = (
+    (ZoneInfo("Europe/London"), time(10, 30)),
+    (ZoneInfo("Europe/London"), time(15, 0)),
+    (ZoneInfo("America/New_York"), time(8, 35)),
+    (ZoneInfo("America/New_York"), time(9, 35)),
+)
+
+
+def _next_slot_utc(zone: ZoneInfo, local_t: time, after_utc: datetime) -> datetime:
+    """Earliest UTC moment strictly after ``after_utc`` matching ``local_t`` in ``zone`` on Mon–Fri."""
+    after_utc = after_utc.astimezone(_UTC)
+    z_after = after_utc.astimezone(zone)
+    d = z_after.date()
+    for _ in range(14):
+        local_dt = datetime.combine(d, local_t, tzinfo=zone)
+        if local_dt > z_after and local_dt.weekday() < 5:
+            return local_dt.astimezone(_UTC)
+        d += timedelta(days=1)
+    raise RuntimeError("Could not find next gold price schedule slot within 14 days")
+
+
+def next_gold_price_check_utc(after_utc: datetime) -> datetime:
+    return min(_next_slot_utc(z, t, after_utc) for z, t in _GOLD_PRICE_SCHEDULE)
 
 # Load environment variables
 load_dotenv()
@@ -367,20 +398,29 @@ def delete_entry(timestamp):
         return jsonify({"error": "An unexpected error occurred"}), 500
 
 def background_price_checker():
-    """Background thread to check prices periodically"""
-    # Wait a bit before starting to let Flask app initialize
+    """Background thread: gold polls (weekdays) + daily Telegram digest at Cairo time (no extra API)."""
     time.sleep(30)
-    
-    # Check prices every 8 hours (to fit GoldAPI 100 req/month limit)
-    CHECK_INTERVAL = 8 * 60 * 60
-    
+
     while True:
         try:
-            check_all_prices()
+            now = datetime.now(_UTC)
+            next_gold = next_gold_price_check_utc(now)
+            next_digest = next_daily_digest_utc(now)
+            if next_digest <= next_gold:
+                delay = max(0.0, (next_digest - now).total_seconds())
+                if delay:
+                    time.sleep(delay)
+                send_daily_digest_from_cache_if_due()
+            else:
+                delay = max(0.0, (next_gold - now).total_seconds())
+                if delay:
+                    time.sleep(delay)
+                check_all_prices()
         except Exception as e:
             print(f"Error in background price checker: {e}")
-        
-        time.sleep(CHECK_INTERVAL)
+            time.sleep(60)
+        else:
+            time.sleep(2)
 
 
 if __name__ == "__main__":

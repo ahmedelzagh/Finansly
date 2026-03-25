@@ -17,31 +17,40 @@ DAILY_NOTIFICATION_FILE = "daily_notification.json"  # Track daily summary sends
 MAX_HISTORY_ENTRIES = 200  # Keep more history for better analysis (need at least 30 for indicators)
 MIN_HISTORY_FOR_SIGNALS = 30  # Minimum history required before sending signals
 MIN_VOLATILITY_RATIO = 0.005  # Require at least 0.5% range over lookback to consider signal (avoid noise)
-DAILY_NOTIFICATION_HOUR = 18  # 6pm Egypt time
 DAILY_TIMEZONE = "Africa/Cairo"
+DAILY_NOTIFICATION_HOUR = int(os.getenv("DAILY_NOTIFICATION_HOUR", "18"))
+DAILY_NOTIFICATION_MINUTE = int(os.getenv("DAILY_NOTIFICATION_MINUTE", "5"))
+# Snapshot from last price poll (for daily Telegram digest — no extra GoldAPI calls at digest time)
+_LAST_DIGEST_CACHE = {}
+
+UTC = ZoneInfo("UTC")
 
 def _daily_summary_next_eligible(now_local):
     """
     Compute whether daily summary is eligible and the next eligible time.
 
     Eligibility rules:
-    - Only after 6pm local time
+    - Only after DAILY_NOTIFICATION_HOUR:MINUTE in DAILY_TIMEZONE
     - Only once per day (tracked in DAILY_NOTIFICATION_FILE)
     """
     tracking = load_daily_notification()
     last_sent_date = tracking.get("last_sent_date")
     today = now_local.strftime("%Y-%m-%d")
 
-    today_6pm = datetime.combine(now_local.date(), dt_time(DAILY_NOTIFICATION_HOUR, 0), tzinfo=now_local.tzinfo)
+    today_cutoff = datetime.combine(
+        now_local.date(),
+        dt_time(DAILY_NOTIFICATION_HOUR, DAILY_NOTIFICATION_MINUTE),
+        tzinfo=now_local.tzinfo,
+    )
 
     if last_sent_date == today:
-        next_eligible = today_6pm + timedelta(days=1)
+        next_eligible = today_cutoff + timedelta(days=1)
         eligible = False
         reason = "already_sent_today"
-    elif now_local < today_6pm:
-        next_eligible = today_6pm
+    elif now_local < today_cutoff:
+        next_eligible = today_cutoff
         eligible = False
-        reason = "before_6pm"
+        reason = "before_cutoff"
     else:
         next_eligible = now_local
         eligible = True
@@ -101,8 +110,13 @@ def save_daily_notification(tracking):
 
 
 def should_send_daily_notification(now_local):
-    """Return True if daily summary should be sent (once per day after 6pm Cairo time)."""
-    if now_local.hour < DAILY_NOTIFICATION_HOUR:
+    """Return True if daily summary should be sent (once per day after cutoff in DAILY_TIMEZONE)."""
+    today_cutoff = datetime.combine(
+        now_local.date(),
+        dt_time(DAILY_NOTIFICATION_HOUR, DAILY_NOTIFICATION_MINUTE),
+        tzinfo=now_local.tzinfo,
+    )
+    if now_local < today_cutoff:
         return False
 
     tracking = load_daily_notification()
@@ -118,10 +132,87 @@ def record_daily_notification(now_local):
     save_daily_notification(tracking)
 
 
+def _update_digest_cache(
+    now_local,
+    gold_price_24k,
+    gold_price_21k,
+    usd_rate,
+    gbp_rate,
+    gold_candidate,
+    fx_candidates,
+):
+    """Store last poll results for the scheduled daily digest (avoids extra API calls)."""
+    global _LAST_DIGEST_CACHE
+    _LAST_DIGEST_CACHE = {
+        "snapshot_date": now_local.strftime("%Y-%m-%d"),
+        "gold_24k": gold_price_24k,
+        "gold_21k": gold_price_21k,
+        "usd": usd_rate,
+        "gbp": gbp_rate,
+        "gold_candidate": gold_candidate,
+        "fx_candidates": list(fx_candidates) if fx_candidates else [],
+    }
+
+
+def next_daily_digest_utc(after_utc: datetime) -> datetime:
+    """Next weekday digest time in DAILY_TIMEZONE, strictly after ``after_utc`` (UTC)."""
+    after_utc = after_utc.astimezone(UTC)
+    zone = ZoneInfo(DAILY_TIMEZONE)
+    z_after = after_utc.astimezone(zone)
+    d = z_after.date()
+    cutoff_t = dt_time(DAILY_NOTIFICATION_HOUR, DAILY_NOTIFICATION_MINUTE)
+    for _ in range(14):
+        local_dt = datetime.combine(d, cutoff_t, tzinfo=zone)
+        if local_dt > z_after and local_dt.weekday() < 5:
+            return local_dt.astimezone(UTC)
+        d += timedelta(days=1)
+    raise RuntimeError("Could not find next daily digest slot within 14 days")
+
+
+def send_daily_digest_from_cache_if_due():
+    """
+    Send the daily Telegram summary using data from the latest weekday poll (same Cairo date).
+    Does not call GoldAPI; runs at the scheduled digest time (see next_daily_digest_utc).
+    """
+    now_local = datetime.now(ZoneInfo(DAILY_TIMEZONE))
+    if not should_send_daily_notification(now_local):
+        return
+
+    today = now_local.strftime("%Y-%m-%d")
+    cache = _LAST_DIGEST_CACHE
+    if not cache or cache.get("snapshot_date") != today:
+        print(
+            f"[DailySummary] skip digest: need snapshot for {today}, "
+            f"have {cache.get('snapshot_date') if cache else 'empty'}"
+        )
+        return
+
+    gold_24k = cache.get("gold_24k")
+    gold_21k = cache.get("gold_21k")
+    usd_rate = cache.get("usd")
+    gbp_rate = cache.get("gbp")
+    gold_candidate = cache.get("gold_candidate")
+    fx_candidates = cache.get("fx_candidates") or []
+
+    wealth_data = _save_daily_wealth_snapshot(now_local, gold_24k, gold_21k, usd_rate)
+    msg = _format_daily_summary_message(
+        now_local,
+        gold_24k,
+        usd_rate,
+        gbp_rate,
+        gold_candidate,
+        fx_candidates,
+        wealth_data,
+    )
+
+    if send_telegram_message(msg):
+        record_daily_notification(now_local)
+
+
 def _format_daily_summary_message(now_local, gold_price_24k, usd_rate, gbp_rate, gold_candidate, fx_candidates, wealth_data=None):
     """Build a concise daily summary message."""
     date_str = now_local.strftime("%Y-%m-%d")
-    lines = [f"🕕 <b>DAILY SUMMARY</b> ({date_str})", "=" * 40]
+    lines = [f"📋 <b>DAILY SUMMARY</b> ({date_str})", "=" * 40]
     lines.append("")
 
     # Prices snapshot
@@ -524,22 +615,12 @@ def check_all_prices():
         if c:
             fx_candidates.append(c)
 
-    # Daily summary notification (once per day after 6pm Egypt time)
-    if not should_send_daily_notification(now_local):
-        return
-
-    # Auto-save daily wealth snapshot using last entered holdings
-    wealth_data = _save_daily_wealth_snapshot(now_local, gold_price_24k, gold_price_21k, usd_rate)
-
-    msg = _format_daily_summary_message(
+    _update_digest_cache(
         now_local,
         gold_price_24k,
+        gold_price_21k,
         usd_rate,
         gbp_rate,
         gold_candidate,
         fx_candidates,
-        wealth_data
     )
-
-    if send_telegram_message(msg):
-        record_daily_notification(now_local)
