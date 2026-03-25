@@ -3,7 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Secure sign in to Finansly." />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#0d0d0d" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Finansly" />
+    <meta property="og:title" content="Finansly - Login" />
+    <meta property="og:description" content="Secure access to your personal financial dashboard." />
+    <meta property="og:url" content="{{ request.url_root }}login" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Finansly - Login" />
+    <meta name="twitter:description" content="Secure access to your Finansly dashboard." />
     <title>Login - Finansly</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
+    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">

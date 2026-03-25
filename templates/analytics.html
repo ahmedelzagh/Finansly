@@ -3,7 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Finansly analytics for trends in gold prices, USD rates, and total portfolio value in EGP." />
+    <meta name="theme-color" content="#0d0d0d" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Finansly" />
+    <meta property="og:title" content="Finansly - Analytics" />
+    <meta property="og:description" content="Visualize historical trends for holdings, rates, and total wealth." />
+    <meta property="og:url" content="{{ request.url_root }}analytics" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Finansly - Analytics" />
+    <meta name="twitter:description" content="Trend charts and insights for your gold and FX holdings." />
     <title>Analytics - Finansly</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
+    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
