@@ -16,7 +16,8 @@ from financial_utils import (
     round_numeric_value, NEW_FORMAT_HEADERS, COL_TIMESTAMP,
     COL_GOLD_24K_HOLDINGS, COL_GOLD_21K_HOLDINGS, COL_USD_BALANCE,
     COL_GOLD_24K_PRICE, COL_GOLD_21K_PRICE, COL_OFFICIAL_USD_RATE,
-    COL_TOTAL_GOLD_VALUE, COL_TOTAL_USD_VALUE, COL_TOTAL_WEALTH
+    COL_TOTAL_GOLD_VALUE, COL_TOTAL_USD_VALUE, COL_TOTAL_WEALTH,
+    get_last_holdings
 )
 from price_tracker import (
     check_all_prices,
@@ -249,6 +250,19 @@ def index():
                 })
         
         data.reverse()  # Reverse the order to show latest details on top
+
+    # Always load the latest snapshot from history so the "Current Holdings" card
+    # doesn't rely on stale client-side cached values.
+    last = get_last_holdings(file_path)
+    session["gold_holdings_24k"] = last.get("gold_24k")
+    session["gold_holdings_21k"] = last.get("gold_21k")
+    session["usd_balance"] = last.get("usd_balance")
+    session["gold_price_24k"] = last.get("gold_price_24k")
+    session["gold_price_21k"] = last.get("gold_price_21k")
+    session["official_usd_rate"] = last.get("official_usd_rate")
+    session["total_gold_value_egp"] = last.get("total_gold_value_egp")
+    session["total_usd_value_egp"] = last.get("total_usd_value_egp")
+    session["total_wealth_egp"] = last.get("total_wealth_egp")
 
     return render_template("index.html", headers=headers, data=data, csrf_token=get_csrf_token())
 

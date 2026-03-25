@@ -188,32 +188,67 @@ def save_to_excel(timestamp, gold_holdings_24k, gold_holdings_21k, usd_balance, 
 
 def get_last_holdings(file_path="financial_summary.xlsx"):
     """
-    Gets the most recent gold and USD holdings from the Excel file.
-    Returns a dict with gold_24k, gold_21k, usd_balance or None values if not found.
+    Gets the most recent snapshot (holdings + market rates + totals) from the Excel file.
+    Returns a dict with:
+      - gold_24k, gold_21k, usd_balance
+      - gold_price_24k, gold_price_21k, official_usd_rate
+      - total_gold_value_egp, total_usd_value_egp, total_wealth_egp
+      - timestamp
+    If anything can't be found, values are returned as None.
     """
+    default = {
+        "timestamp": None,
+        "gold_24k": None,
+        "gold_21k": None,
+        "usd_balance": None,
+        "gold_price_24k": None,
+        "gold_price_21k": None,
+        "official_usd_rate": None,
+        "total_gold_value_egp": None,
+        "total_usd_value_egp": None,
+        "total_wealth_egp": None,
+    }
+
     if not os.path.exists(file_path):
-        return {"gold_24k": None, "gold_21k": None, "usd_balance": None}
+        return default
     
     try:
         workbook = load_workbook(file_path)
         sheet = workbook.active
         
+        existing_headers = [cell.value for cell in sheet[1]]
+        headers = existing_headers if len(existing_headers) == 10 else NEW_FORMAT_HEADERS
+
         # Find the last non-empty row
         last_row = None
         for row in sheet.iter_rows(min_row=2, values_only=True):
             if row and any(cell is not None for cell in row):
                 last_row = row
         
-        if last_row and len(last_row) >= 4:
-            return {
-                "gold_24k": last_row[1],  # COL_GOLD_24K_HOLDINGS index
-                "gold_21k": last_row[2],  # COL_GOLD_21K_HOLDINGS index
-                "usd_balance": last_row[3]  # COL_USD_BALANCE index
-            }
+        if not last_row:
+            return default
+
+        def _get(idx):
+            if idx is None or idx >= len(last_row):
+                return None
+            return last_row[idx]
+
+        return {
+            "timestamp": _get(get_column_index(headers, COL_TIMESTAMP)),
+            "gold_24k": _get(get_column_index(headers, COL_GOLD_24K_HOLDINGS)),
+            "gold_21k": _get(get_column_index(headers, COL_GOLD_21K_HOLDINGS)),
+            "usd_balance": _get(get_column_index(headers, COL_USD_BALANCE)),
+            "gold_price_24k": _get(get_column_index(headers, COL_GOLD_24K_PRICE)),
+            "gold_price_21k": _get(get_column_index(headers, COL_GOLD_21K_PRICE)),
+            "official_usd_rate": _get(get_column_index(headers, COL_OFFICIAL_USD_RATE)),
+            "total_gold_value_egp": _get(get_column_index(headers, COL_TOTAL_GOLD_VALUE)),
+            "total_usd_value_egp": _get(get_column_index(headers, COL_TOTAL_USD_VALUE)),
+            "total_wealth_egp": _get(get_column_index(headers, COL_TOTAL_WEALTH)),
+        }
     except Exception as e:
         print(f"Error reading last holdings: {e}")
     
-    return {"gold_24k": None, "gold_21k": None, "usd_balance": None}
+    return default
 
 # Function to normalize rows to dictionary format
 def normalize_row_to_new_format(row, headers):
