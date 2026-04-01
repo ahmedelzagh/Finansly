@@ -16,6 +16,13 @@ AUTO_TRANSFER_DAY = 1  # Day of month for auto-transfer
 # PayPal currency conversion spread (as a percentage of base FX rate)
 # Default is 3% for most conversions; use 4% for “paying in a different currency”.
 PAYPAL_CONVERSION_SPREAD_PCT = float(os.getenv("PAYPAL_CONVERSION_SPREAD_PCT", "0.03"))
+# Extra haircut applied to make the estimate conservative.
+PAYPAL_SAFETY_BUFFER_PCT = float(os.getenv("PAYPAL_SAFETY_BUFFER_PCT", "0.0075"))
+
+
+def get_effective_paypal_spread_pct():
+    """Return the total spread used for conservative estimates."""
+    return PAYPAL_CONVERSION_SPREAD_PCT + PAYPAL_SAFETY_BUFFER_PCT
 
 
 def apply_paypal_spread(base_rate, spread_pct):
@@ -84,8 +91,10 @@ def calculate_paypal_transfer(gbp_amount):
     
     days_until, next_transfer_date = calculate_days_until_auto_transfer()
     
+    effective_spread_pct = get_effective_paypal_spread_pct()
+
     # Calculate current value if transferred now (PayPal rate includes spread)
-    paypal_current_rate = apply_paypal_spread(current_rate, PAYPAL_CONVERSION_SPREAD_PCT)
+    paypal_current_rate = apply_paypal_spread(current_rate, effective_spread_pct)
     current_value_egp = gbp_amount * paypal_current_rate
     current_value_after_tax = current_value_egp - MANUAL_TRANSFER_TAX
     
@@ -98,7 +107,7 @@ def calculate_paypal_transfer(gbp_amount):
     else:
         estimated_future_rate = current_rate * 0.98  # Conservative estimate
 
-    paypal_estimated_future_rate = apply_paypal_spread(estimated_future_rate, PAYPAL_CONVERSION_SPREAD_PCT)
+    paypal_estimated_future_rate = apply_paypal_spread(estimated_future_rate, effective_spread_pct)
     
     # Calculate future value if waiting
     future_value_egp = gbp_amount * paypal_estimated_future_rate
@@ -126,6 +135,8 @@ def calculate_paypal_transfer(gbp_amount):
         "base_current_rate": current_rate,
         "base_estimated_future_rate": estimated_future_rate,
         "paypal_spread_pct": PAYPAL_CONVERSION_SPREAD_PCT,
+        "paypal_safety_buffer_pct": PAYPAL_SAFETY_BUFFER_PCT,
+        "effective_paypal_spread_pct": effective_spread_pct,
         "current_value_egp": current_value_egp,
         "current_value_after_tax": current_value_after_tax,
         "future_value_egp": future_value_egp,
@@ -181,7 +192,9 @@ def format_paypal_transfer_message(decision_data):
     message += f"\n📆 <b>Days until auto-transfer:</b> {decision_data['days_until_auto']} days\n\n"
     
     message += "⚠️ <b>Note:</b> Future rate is an estimate based on recent trends.\n"
-    message += f"PayPal rate includes a conversion spread of {decision_data['paypal_spread_pct']*100:.2f}%.\n"
+    message += f"PayPal base spread: {decision_data['paypal_spread_pct']*100:.2f}%\n"
+    message += f"Safety buffer: {decision_data['paypal_safety_buffer_pct']*100:.2f}%\n"
+    message += f"Effective spread used: {decision_data['effective_paypal_spread_pct']*100:.2f}%\n"
     message += "Actual rate on transfer day may vary."
     
     return message

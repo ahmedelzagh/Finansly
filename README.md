@@ -99,6 +99,8 @@ This calculates whether to:
 - Transfer manually now (125 EGP tax)
 - OR wait for auto-transfer on 1st of month (no tax)
 
+By default, the calculator also applies a small conservative safety buffer on top of the estimated PayPal spread. You can tune it with `PAYPAL_SAFETY_BUFFER_PCT` in your `.env` file if you want a tighter or looser estimate.
+
 **Setup Telegram Webhook:**
 ```bash
 python setup_webhook.py
