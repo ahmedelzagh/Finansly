@@ -10,6 +10,7 @@ load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://your-domain.com/telegram-webhook")
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
 
 def set_webhook():
     """Set Telegram webhook URL"""
@@ -19,12 +20,19 @@ def set_webhook():
     
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook"
     payload = {"url": WEBHOOK_URL}
+    # If a webhook secret is configured, pass it to Telegram so Telegram will
+    # include X-Telegram-Bot-API-Secret-Token in incoming webhook requests.
+    if TELEGRAM_WEBHOOK_SECRET:
+        payload["secret_token"] = TELEGRAM_WEBHOOK_SECRET
     
     try:
         response = requests.post(url, json=payload, timeout=10)
         response.raise_for_status()
         result = response.json()
-        
+
+        print("setWebhook payload:", payload)
+        print("Telegram response:", result)
+
         if result.get("ok"):
             print(f"✅ Webhook set successfully!")
             print(f"URL: {WEBHOOK_URL}")

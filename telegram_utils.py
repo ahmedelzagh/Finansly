@@ -40,9 +40,15 @@ def send_telegram_message(message, chat_id=None):
             "text": message,
             "parse_mode": "HTML"
         }
-        
+
         response = requests.post(telegram_api_url, json=payload, timeout=10)
         response.raise_for_status()
+        # Log successful send with Telegram response for debugging
+        try:
+            resp_json = response.json()
+            print(f"[telegram_send] ok response: {resp_json}")
+        except Exception:
+            print("[telegram_send] message sent (no JSON in response)")
         return True
     except requests.exceptions.HTTPError as e:
         # Get more details from the error response

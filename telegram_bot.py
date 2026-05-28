@@ -44,22 +44,28 @@ def handle_telegram_webhook():
     try:
         secret_token = request.headers.get("X-Telegram-Bot-API-Secret-Token", "")
 
+        # Read incoming JSON early for logging and verification
+        data = request.get_json(silent=True) or {}
+        print(f"[telegram_webhook] incoming secret_header={secret_token}, payload_keys={list(data.keys())}")
+
         # Verify webhook authenticity
         if not verify_telegram_webhook(secret_token):
+            print("[telegram_webhook] invalid signature")
             return jsonify({"error": "Invalid signature"}), 403
-        
-        data = request.get_json()
-        
+
         # Telegram sends updates in this format
         if "message" not in data:
+            print("[telegram_webhook] no message field in update, ignoring")
             return jsonify({"ok": True})
-        
+
         message = data["message"]
         chat_id = message.get("chat", {}).get("id")
         text = message.get("text", "").strip()
+        print(f"[telegram_webhook] chat_id={chat_id}, text={text}")
         
         # Only process messages from authorized chat
         if str(chat_id) != str(TELEGRAM_CHAT_ID):
+            print(f"[telegram_webhook] chat_id {chat_id} not authorized (expected {TELEGRAM_CHAT_ID}), ignoring")
             return jsonify({"ok": True})
         
         # Handle /paypal command
