@@ -70,7 +70,7 @@ def handle_telegram_webhook():
                 send_telegram_message(
                     "❌ <b>Usage:</b> /paypal &lt;amount&gt;\n\n"
                     "Example: /paypal 1000\n"
-                    "This will check if manual withdrawal with a 3% fee is worth it vs waiting for auto-transfer.",
+                    "Enter the GBP amount shown in PayPal. The bot will estimate the USD you receive after a 3% manual fee.",
                     chat_id=chat_id
                 )
                 return jsonify({"ok": True})
@@ -90,7 +90,7 @@ def handle_telegram_webhook():
                     message_text = format_paypal_transfer_message(decision)
                     send_telegram_message(message_text, chat_id=chat_id)
                 else:
-                    send_telegram_message("❌ Error: Could not calculate withdrawal decision. Check USD amount.", chat_id=chat_id)
+                    send_telegram_message("❌ Error: Could not calculate withdrawal decision. Check GBP amount and rate availability.", chat_id=chat_id)
                     
             except ValueError:
                 send_telegram_message(f"❌ Invalid amount: '{parts[1]}'. Please provide a number.\n\nExample: /paypal 1000", chat_id=chat_id)
@@ -102,12 +102,12 @@ def handle_telegram_webhook():
             help_message = (
                 "🤖 <b>Finansly Bot Commands</b>\n\n"
                 "📊 <b>/paypal &lt;amount&gt;</b>\n"
-                "Check if manual PayPal withdrawal is worth it\n"
+                "Check the USD you would receive from a GBP PayPal withdrawal\n"
                 "Example: /paypal 1000\n\n"
                 "This calculates whether to:\n"
-                "• Withdraw manually now with a 3% fee\n"
-                "• OR wait for auto-transfer on 1st (no tax)\n\n"
-                "The bot will compare manual vs auto withdrawal and tell you which option leaves you with more USD."
+                "• Withdraw now using PayPal's 3% manual fee\n"
+                "• OR wait for auto-transfer on 1st (no additional fee)\n\n"
+                "The bot uses the current GBP->USD cross rate derived from GBP/EGP and USD/EGP rates."
             )
             send_telegram_message(help_message, chat_id=chat_id)
         

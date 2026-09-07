@@ -1,22 +1,21 @@
 """
-PayPal USD Withdrawal Calculator
-Call this function with a USD amount to get a withdrawal recommendation.
+PayPal GBP to USD Withdrawal Calculator
+Call this function with a GBP amount to estimate the USD withdrawal amount.
 """
 from datetime import datetime
 import os
 
 from dotenv import load_dotenv
 
+from financial_utils import get_gbp_rate, get_official_usd_rate
 from telegram_utils import send_telegram_message
 
 load_dotenv()
 
 # Configuration
 AUTO_TRANSFER_DAY = 1  # Day of month for auto-transfer
-MANUAL_WITHDRAWAL_FEE_PCT = float(
-    os.getenv("PAYPAL_MANUAL_WITHDRAWAL_FEE_PCT", os.getenv("PAYPAL_CONVERSION_SPREAD_PCT", "0.03"))
-)
-AUTO_WITHDRAWAL_FEE_PCT = float(os.getenv("PAYPAL_AUTO_WITHDRAWAL_FEE_PCT", "0.0"))
+MANUAL_WITHDRAWAL_FEE_PCT = float(os.getenv("PAYPAL_MANUAL_WITHDRAWAL_FEE_PCT", "0.03"))
+AUTO_WITHDRAWAL_FEE_PCT = 0.0
 TRANSFER_THRESHOLD_USD = float(os.getenv("PAYPAL_TRANSFER_THRESHOLD_USD", "0.01"))
 
 
@@ -36,26 +35,34 @@ def calculate_days_until_auto_transfer():
     return days_until, next_transfer
 
 
-def calculate_paypal_transfer(usd_amount):
+def calculate_paypal_transfer(gbp_amount):
     """
-    Calculate PayPal withdrawal decision for given USD amount.
+    Calculate PayPal withdrawal decision for given GBP amount.
 
     Args:
-        usd_amount (float): USD amount to withdraw
+        gbp_amount (float): GBP amount to withdraw
 
     Returns:
         dict with decision and calculations, or None if error
     """
-    if usd_amount <= 0:
+    if gbp_amount <= 0:
         return None
+
+    gbp_to_egp_rate = get_gbp_rate()
+    usd_to_egp_rate = get_official_usd_rate()
+    if not gbp_to_egp_rate or not usd_to_egp_rate:
+        return None
+
+    gbp_to_usd_rate = gbp_to_egp_rate / usd_to_egp_rate
+    gross_usd_amount = gbp_amount * gbp_to_usd_rate
 
     days_until, next_transfer_date = calculate_days_until_auto_transfer()
 
-    manual_fee_amount = usd_amount * MANUAL_WITHDRAWAL_FEE_PCT
-    auto_fee_amount = usd_amount * AUTO_WITHDRAWAL_FEE_PCT
+    manual_fee_amount = gross_usd_amount * MANUAL_WITHDRAWAL_FEE_PCT
+    auto_fee_amount = gross_usd_amount * AUTO_WITHDRAWAL_FEE_PCT
 
-    manual_net_amount = usd_amount - manual_fee_amount
-    auto_net_amount = usd_amount - auto_fee_amount
+    manual_net_amount = gross_usd_amount - manual_fee_amount
+    auto_net_amount = gross_usd_amount - auto_fee_amount
     difference = manual_net_amount - auto_net_amount
 
     if difference > TRANSFER_THRESHOLD_USD:
@@ -71,7 +78,11 @@ def calculate_paypal_transfer(usd_amount):
     return {
         "recommendation": recommendation,
         "reason": reason,
-        "usd_balance": usd_amount,
+        "gbp_amount": gbp_amount,
+        "gross_usd_amount": gross_usd_amount,
+        "gbp_to_usd_rate": gbp_to_usd_rate,
+        "gbp_to_egp_rate": gbp_to_egp_rate,
+        "usd_to_egp_rate": usd_to_egp_rate,
         "manual_fee_pct": MANUAL_WITHDRAWAL_FEE_PCT,
         "auto_fee_pct": AUTO_WITHDRAWAL_FEE_PCT,
         "manual_fee_amount": manual_fee_amount,
@@ -101,7 +112,9 @@ def format_paypal_transfer_message(decision_data):
     message = f"{emoji} <b>{title}</b>\n"
     message += "=" * 40 + "\n\n"
     
-    message += f"💰 <b>USD Amount:</b> {decision_data['usd_balance']:.2f} USD\n\n"
+    message += f"💰 <b>GBP Amount:</b> {decision_data['gbp_amount']:.2f} GBP\n"
+    message += f"   <b>Estimated gross USD:</b> {decision_data['gross_usd_amount']:.2f} USD\n"
+    message += f"   <b>Conversion rate:</b> 1 GBP = {decision_data['gbp_to_usd_rate']:.6f} USD\n\n"
     
     message += "📊 <b>CURRENT OPTION (Manual Withdrawal Now):</b>\n"
     message += f"   • Manual fee: {decision_data['manual_fee_pct']*100:.2f}%\n"
@@ -125,7 +138,8 @@ def format_paypal_transfer_message(decision_data):
     message += f"\n📆 <b>Days until auto-transfer:</b> {decision_data['days_until_auto']} days\n\n"
     
     message += "⚠️ <b>Note:</b> Manual withdrawal now uses a 3% fee by default.\n"
-    message += "Auto-transfer is assumed to have no additional withdrawal fee."
+    message += "Auto-transfer is assumed to have no additional withdrawal fee.\n"
+    message += "Rates are estimated from the current GBP->EGP and USD->EGP market rates."
     
     return message
 
@@ -145,7 +159,7 @@ def check_paypal_transfer(usd_amount, send_to_telegram=True):
     
     if not decision:
         if send_to_telegram:
-            send_telegram_message("❌ Error: Could not calculate withdrawal decision. Check USD amount.")
+            send_telegram_message("❌ Error: Could not calculate withdrawal decision. Check GBP amount and rate availability.")
         return None
     
     message = format_paypal_transfer_message(decision)

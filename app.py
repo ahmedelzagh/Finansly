@@ -366,7 +366,7 @@ def api_analytics():
 @app.route("/paypal-check", methods=["GET", "POST"])
 @login_required
 def paypal_check():
-    """Check PayPal withdrawal decision for given USD amount (web interface)."""
+    """Check PayPal withdrawal decision for given GBP amount (web interface)."""
     from paypal_transfer_calculator import check_paypal_transfer
     
     if request.method == "POST":
@@ -391,7 +391,10 @@ def paypal_check():
             "success": True,
             "message": "Check sent to Telegram",
             "recommendation": decision["recommendation"],
-            "difference_usd": decision["difference"]
+            "difference_usd": decision["difference"],
+            "gbp_amount": decision["gbp_amount"],
+            "gross_usd_amount": decision["gross_usd_amount"],
+            "gbp_to_usd_rate": decision["gbp_to_usd_rate"]
         })
     else:
         return jsonify({"error": "Could not calculate withdrawal decision"}), 500
