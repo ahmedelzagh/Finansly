@@ -70,7 +70,7 @@ def handle_telegram_webhook():
                 send_telegram_message(
                     "❌ <b>Usage:</b> /paypal &lt;amount&gt;\n\n"
                     "Example: /paypal 1000\n"
-                    "Enter the GBP amount shown in PayPal. The bot will estimate the USD you receive after a 3% manual fee.",
+                    "Enter the GBP amount shown in PayPal. The bot will estimate the final EGP you receive after PayPal's discounted GBP/USD rate, a 3% manual fee, and a 1% USD->EGP fee.",
                     chat_id=chat_id
                 )
                 return jsonify({"ok": True})
@@ -102,12 +102,12 @@ def handle_telegram_webhook():
             help_message = (
                 "🤖 <b>Finansly Bot Commands</b>\n\n"
                 "📊 <b>/paypal &lt;amount&gt;</b>\n"
-                "Check the USD you would receive from a GBP PayPal withdrawal\n"
+                "Check the final EGP you would receive from a GBP PayPal withdrawal\n"
                 "Example: /paypal 1000\n\n"
                 "This calculates whether to:\n"
-                "• Withdraw now using PayPal's 3% manual fee\n"
-                "• OR wait for auto-transfer on 1st (no additional fee)\n\n"
-                "The bot uses the current GBP->USD cross rate derived from GBP/EGP and USD/EGP rates."
+                "• Withdraw now using PayPal's discounted GBP/USD rate and a 3% manual fee\n"
+                "• OR wait for auto-transfer on 1st (same PayPal conversion, no manual fee)\n\n"
+                "The bot then converts USD to EGP using a 1% InstaPay fee."
             )
             send_telegram_message(help_message, chat_id=chat_id)
         

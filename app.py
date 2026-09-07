@@ -391,10 +391,13 @@ def paypal_check():
             "success": True,
             "message": "Check sent to Telegram",
             "recommendation": decision["recommendation"],
-            "difference_usd": decision["difference"],
+            "difference_egp": decision["difference"],
             "gbp_amount": decision["gbp_amount"],
             "gross_usd_amount": decision["gross_usd_amount"],
-            "gbp_to_usd_rate": decision["gbp_to_usd_rate"]
+            "gbp_to_usd_market_rate": decision["gbp_to_usd_market_rate"],
+            "paypal_gbp_to_usd_rate": decision["paypal_gbp_to_usd_rate"],
+            "manual_final_egp": decision["manual_final_egp"],
+            "auto_final_egp": decision["auto_final_egp"]
         })
     else:
         return jsonify({"error": "Could not calculate withdrawal decision"}), 500

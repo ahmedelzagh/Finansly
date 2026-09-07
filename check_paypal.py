@@ -28,6 +28,6 @@ if __name__ == "__main__":
     if decision:
         print("\n✅ Decision sent to Telegram!")
         print(f"Recommendation: {decision['recommendation']}")
-        print(f"Difference: {decision['difference']:.2f} USD")
+        print(f"Difference: {decision['difference']:.2f} EGP")
     else:
         print("❌ Error: Could not calculate withdrawal decision")
