@@ -16,7 +16,12 @@ load_dotenv()
 AUTO_TRANSFER_DAY = 1  # Day of month for auto-transfer
 PAYPAL_CONVERSION_DISCOUNT_PCT = float(os.getenv("PAYPAL_CONVERSION_DISCOUNT_PCT", "0.03135"))
 MANUAL_WITHDRAWAL_FEE_PCT = float(os.getenv("PAYPAL_MANUAL_WITHDRAWAL_FEE_PCT", "0.03"))
-INSTA_PAY_FEE_PCT = float(os.getenv("PAYPAL_INSTA_PAY_FEE_PCT", "0.01"))
+NSAVE_WITHDRAW_TO_EGP_FEE_PCT = float(
+    os.getenv(
+        "PAYPAL_NSAVE_WITHDRAW_TO_EGP_FEE_PCT",
+        os.getenv("PAYPAL_INSTA_PAY_FEE_PCT", "0.01"),
+    )
+)
 TRANSFER_THRESHOLD_EGP = float(os.getenv("PAYPAL_TRANSFER_THRESHOLD_EGP", os.getenv("PAYPAL_TRANSFER_THRESHOLD_USD", "1.0")))
 
 
@@ -64,8 +69,8 @@ def calculate_paypal_transfer(gbp_amount):
 
     manual_net_amount = gross_usd_amount - manual_fee_amount
     auto_net_amount = gross_usd_amount - auto_fee_amount
-    manual_final_egp = manual_net_amount * usd_to_egp_rate * (1 - INSTA_PAY_FEE_PCT)
-    auto_final_egp = auto_net_amount * usd_to_egp_rate * (1 - INSTA_PAY_FEE_PCT)
+    manual_final_egp = manual_net_amount * usd_to_egp_rate * (1 - NSAVE_WITHDRAW_TO_EGP_FEE_PCT)
+    auto_final_egp = auto_net_amount * usd_to_egp_rate * (1 - NSAVE_WITHDRAW_TO_EGP_FEE_PCT)
     difference = manual_final_egp - auto_final_egp
 
     if difference > TRANSFER_THRESHOLD_EGP:
@@ -88,7 +93,7 @@ def calculate_paypal_transfer(gbp_amount):
         "paypal_gbp_to_usd_rate": paypal_gbp_to_usd_rate,
         "usd_to_egp_rate": usd_to_egp_rate,
         "manual_fee_pct": MANUAL_WITHDRAWAL_FEE_PCT,
-        "instapay_fee_pct": INSTA_PAY_FEE_PCT,
+        "nsave_withdraw_to_egp_fee_pct": NSAVE_WITHDRAW_TO_EGP_FEE_PCT,
         "manual_fee_amount": manual_fee_amount,
         "auto_fee_amount": auto_fee_amount,
         "manual_net_amount": manual_net_amount,
@@ -126,12 +131,12 @@ def format_paypal_transfer_message(decision_data):
     message += "📊 <b>CURRENT OPTION (Manual Withdrawal Now):</b>\n"
     message += f"   • Manual fee: {decision_data['manual_fee_pct']*100:.2f}%\n"
     message += f"   • Fee amount: -{decision_data['manual_fee_amount']:.2f} USD\n"
-    message += f"   • USD->EGP fee: {decision_data['instapay_fee_pct']*100:.2f}%\n"
+    message += f"   • nsave withdraw-to-EGP fee: {decision_data['nsave_withdraw_to_egp_fee_pct']*100:.2f}%\n"
     message += f"   • <b>Final amount: {decision_data['manual_final_egp']:.2f} EGP</b>\n\n"
     message += "📅 <b>AUTO-TRANSFER OPTION (Wait until {})</b>:\n".format(decision_data['next_transfer_date'])
     message += f"   • Manual fee: 0.00%\n"
     message += f"   • Fee amount: -{decision_data['auto_fee_amount']:.2f} USD\n"
-    message += f"   • USD->EGP fee: {decision_data['instapay_fee_pct']*100:.2f}%\n"
+    message += f"   • nsave withdraw-to-EGP fee: {decision_data['nsave_withdraw_to_egp_fee_pct']*100:.2f}%\n"
     message += f"   • <b>Final amount: {decision_data['auto_final_egp']:.2f} EGP</b>\n\n"
     
     message += "💡 <b>DECISION:</b>\n"
@@ -147,7 +152,7 @@ def format_paypal_transfer_message(decision_data):
     message += f"\n📆 <b>Days until auto-transfer:</b> {decision_data['days_until_auto']} days\n\n"
     
     message += "⚠️ <b>Note:</b> PayPal conversion is discounted from the live GBP/USD market rate.\n"
-    message += "USD -> EGP uses a 1% InstaPay fee by default."
+    message += "USD -> EGP uses the nsave withdraw-to-EGP fee by default."
     
     return message
 

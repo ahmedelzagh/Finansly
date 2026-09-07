@@ -11,7 +11,7 @@ Finansly is a Python-based financial summary tool that helps users track their w
 - Web interface to input data and view financial summaries.
 - Ability to delete specific entries from the financial summary.
 - **Telegram notifications** with buy/sell signals based on real-world trading strategies (Moving Averages, RSI, Support/Resistance).
-- **PayPal transfer calculator** - Telegram bot command to estimate the final EGP you receive from a GBP PayPal withdrawal using PayPal's discounted GBP/USD rate, a 3% manual fee, and a 1% USD->EGP fee.
+- **PayPal transfer calculator** - Telegram bot command to estimate the final EGP you receive from a GBP PayPal withdrawal using PayPal's discounted GBP/USD rate, a 3% manual fee, and the nsave withdraw-to-EGP fee.
 - **Security features**: CSRF protection, secure session handling, input validation, and webhook verification.
 
 ## Requirements
@@ -99,7 +99,7 @@ This calculates whether to:
 
 - Convert GBP to USD using PayPal's discounted rate
 - Apply a 3% manual withdrawal fee when withdrawing now
-- Apply a 1% USD->EGP fee when moving money into InstaPay
+- Apply the nsave withdraw-to-EGP fee when moving money into EGP
 - Compare the final EGP outcome against the auto-transfer path
 
 The calculator compares the final EGP outcome against the auto-transfer path and ignores tiny differences below the configurable EGP threshold.
