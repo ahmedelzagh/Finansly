@@ -1,5 +1,5 @@
 """
-Simple command-line tool to check PayPal transfer decision
+Simple command-line tool to check PayPal withdrawal decision
 Usage: python check_paypal.py <amount>
 Example: python check_paypal.py 1000
 """
@@ -8,7 +8,7 @@ from paypal_transfer_calculator import check_paypal_transfer
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python check_paypal.py <GBP_amount>")
+        print("Usage: python check_paypal.py <USD_amount>")
         print("Example: python check_paypal.py 1000")
         sys.exit(1)
     
@@ -22,12 +22,12 @@ if __name__ == "__main__":
         print("Error: Amount must be greater than 0")
         sys.exit(1)
     
-    print(f"Checking transfer decision for {amount} GBP...")
+    print(f"Checking withdrawal decision for {amount} USD...")
     decision = check_paypal_transfer(amount, send_to_telegram=True)
     
     if decision:
         print("\n✅ Decision sent to Telegram!")
         print(f"Recommendation: {decision['recommendation']}")
-        print(f"Difference: {decision['difference']:.2f} EGP")
+        print(f"Difference: {decision['difference']:.2f} USD")
     else:
-        print("❌ Error: Could not calculate transfer decision")
+        print("❌ Error: Could not calculate withdrawal decision")

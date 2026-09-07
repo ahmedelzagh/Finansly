@@ -1,38 +1,23 @@
 """
-PayPal GBP Transfer Decision Calculator
-Call this function with an amount to get transfer recommendation
+PayPal USD Withdrawal Calculator
+Call this function with a USD amount to get a withdrawal recommendation.
 """
 from datetime import datetime
 import os
+
 from dotenv import load_dotenv
-from financial_utils import get_gbp_rate
+
 from telegram_utils import send_telegram_message
-from price_tracker import load_price_history
+
 load_dotenv()
 
 # Configuration
-MANUAL_TRANSFER_TAX = 125  # EGP fee for manual transfer
 AUTO_TRANSFER_DAY = 1  # Day of month for auto-transfer
-# PayPal currency conversion spread (as a percentage of base FX rate)
-# Default is 3% for most conversions; use 4% for “paying in a different currency”.
-PAYPAL_CONVERSION_SPREAD_PCT = float(os.getenv("PAYPAL_CONVERSION_SPREAD_PCT", "0.03"))
-# Extra haircut applied to make the estimate conservative.
-PAYPAL_SAFETY_BUFFER_PCT = float(os.getenv("PAYPAL_SAFETY_BUFFER_PCT", "0.0075"))
-
-
-def get_effective_paypal_spread_pct():
-    """Return the total spread used for conservative estimates."""
-    return PAYPAL_CONVERSION_SPREAD_PCT + PAYPAL_SAFETY_BUFFER_PCT
-
-
-def apply_paypal_spread(base_rate, spread_pct):
-    """Apply PayPal conversion spread to a base FX rate."""
-    if base_rate is None:
-        return None
-    try:
-        return base_rate * (1 - spread_pct)
-    except Exception:
-        return base_rate
+MANUAL_WITHDRAWAL_FEE_PCT = float(
+    os.getenv("PAYPAL_MANUAL_WITHDRAWAL_FEE_PCT", os.getenv("PAYPAL_CONVERSION_SPREAD_PCT", "0.03"))
+)
+AUTO_WITHDRAWAL_FEE_PCT = float(os.getenv("PAYPAL_AUTO_WITHDRAWAL_FEE_PCT", "0.0"))
+TRANSFER_THRESHOLD_USD = float(os.getenv("PAYPAL_TRANSFER_THRESHOLD_USD", "0.01"))
 
 
 def calculate_days_until_auto_transfer():
@@ -51,110 +36,61 @@ def calculate_days_until_auto_transfer():
     return days_until, next_transfer
 
 
-def estimate_future_rate(current_rate, price_history, days_ahead):
-    """Estimate future GBP rate based on historical trends"""
-    if len(price_history) < 7:
-        return current_rate
-    
-    recent_prices = price_history[-min(7, len(price_history)):]
-    prices = [p["price"] for p in recent_prices]
-    
-    if len(prices) >= 2:
-        daily_changes = []
-        for i in range(1, len(prices)):
-            change = prices[i] - prices[i-1]
-            daily_changes.append(change)
-        
-        avg_daily_change = sum(daily_changes) / len(daily_changes) if daily_changes else 0
-        estimated_rate = current_rate + (avg_daily_change * days_ahead * 0.5)
-        return max(estimated_rate, current_rate * 0.95)
-    
-    return current_rate
-
-
-def calculate_paypal_transfer(gbp_amount):
+def calculate_paypal_transfer(usd_amount):
     """
-    Calculate PayPal transfer decision for given GBP amount
-    
+    Calculate PayPal withdrawal decision for given USD amount.
+
     Args:
-        gbp_amount (float): GBP amount to transfer
-        
+        usd_amount (float): USD amount to withdraw
+
     Returns:
         dict with decision and calculations, or None if error
     """
-    if gbp_amount <= 0:
+    if usd_amount <= 0:
         return None
-    
-    current_rate = get_gbp_rate()
-    if not current_rate:
-        return None
-    
+
     days_until, next_transfer_date = calculate_days_until_auto_transfer()
-    
-    effective_spread_pct = get_effective_paypal_spread_pct()
 
-    # Calculate current value if transferred now (PayPal rate includes spread)
-    paypal_current_rate = apply_paypal_spread(current_rate, effective_spread_pct)
-    current_value_egp = gbp_amount * paypal_current_rate
-    current_value_after_tax = current_value_egp - MANUAL_TRANSFER_TAX
-    
-    # Estimate future rate (base) and apply PayPal spread
-    history = load_price_history()
-    gbp_history = history.get("gbp", []) if history else []
-    
-    if gbp_history:
-        estimated_future_rate = estimate_future_rate(current_rate, gbp_history, days_until)
-    else:
-        estimated_future_rate = current_rate * 0.98  # Conservative estimate
+    manual_fee_amount = usd_amount * MANUAL_WITHDRAWAL_FEE_PCT
+    auto_fee_amount = usd_amount * AUTO_WITHDRAWAL_FEE_PCT
 
-    paypal_estimated_future_rate = apply_paypal_spread(estimated_future_rate, effective_spread_pct)
-    
-    # Calculate future value if waiting
-    future_value_egp = gbp_amount * paypal_estimated_future_rate
-    future_value_after_tax = future_value_egp  # No tax on auto-transfer
-    
-    # Calculate difference
-    difference = current_value_after_tax - future_value_after_tax
-    # Decision logic
-    if difference > 50:
+    manual_net_amount = usd_amount - manual_fee_amount
+    auto_net_amount = usd_amount - auto_fee_amount
+    difference = manual_net_amount - auto_net_amount
+
+    if difference > TRANSFER_THRESHOLD_USD:
         recommendation = "MANUAL_TRANSFER"
-        reason = f"Manual transfer now saves {difference:.2f} EGP even after tax"
-    elif difference < -50:
+        reason = f"Manual withdrawal now gives you {difference:.2f} USD more than auto-transfer"
+    elif difference < -TRANSFER_THRESHOLD_USD:
         recommendation = "WAIT_FOR_AUTO"
-        reason = f"Waiting saves {abs(difference):.2f} EGP (better rate expected)"
+        reason = f"Waiting saves {abs(difference):.2f} USD versus manual withdrawal"
     else:
         recommendation = "EITHER"
-        reason = f"Difference is small ({difference:.2f} EGP), either option is fine"
+        reason = f"Difference is small ({difference:.2f} USD), either option is fine"
     
     return {
         "recommendation": recommendation,
         "reason": reason,
-        "gbp_balance": gbp_amount,
-        "current_rate": paypal_current_rate,
-        "estimated_future_rate": paypal_estimated_future_rate,
-        "base_current_rate": current_rate,
-        "base_estimated_future_rate": estimated_future_rate,
-        "paypal_spread_pct": PAYPAL_CONVERSION_SPREAD_PCT,
-        "paypal_safety_buffer_pct": PAYPAL_SAFETY_BUFFER_PCT,
-        "effective_paypal_spread_pct": effective_spread_pct,
-        "current_value_egp": current_value_egp,
-        "current_value_after_tax": current_value_after_tax,
-        "future_value_egp": future_value_egp,
-        "future_value_after_tax": future_value_after_tax,
+        "usd_balance": usd_amount,
+        "manual_fee_pct": MANUAL_WITHDRAWAL_FEE_PCT,
+        "auto_fee_pct": AUTO_WITHDRAWAL_FEE_PCT,
+        "manual_fee_amount": manual_fee_amount,
+        "auto_fee_amount": auto_fee_amount,
+        "manual_net_amount": manual_net_amount,
+        "auto_net_amount": auto_net_amount,
         "difference": difference,
         "days_until_auto": days_until,
-        "next_transfer_date": next_transfer_date.strftime("%Y-%m-%d"),
-        "manual_tax": MANUAL_TRANSFER_TAX
+        "next_transfer_date": next_transfer_date.strftime("%Y-%m-%d")
     }
 
 
 def format_paypal_transfer_message(decision_data):
-    """Format PayPal transfer decision message"""
+    """Format PayPal withdrawal decision message."""
     rec = decision_data["recommendation"]
     
     if rec == "MANUAL_TRANSFER":
         emoji = "✅"
-        title = "TRANSFER NOW RECOMMENDED"
+        title = "WITHDRAW NOW RECOMMENDED"
     elif rec == "WAIT_FOR_AUTO":
         emoji = "⏳"
         title = "WAIT FOR AUTO-TRANSFER"
@@ -165,57 +101,51 @@ def format_paypal_transfer_message(decision_data):
     message = f"{emoji} <b>{title}</b>\n"
     message += "=" * 40 + "\n\n"
     
-    message += f"💰 <b>GBP Amount:</b> {decision_data['gbp_balance']:.2f} GBP\n\n"
+    message += f"💰 <b>USD Amount:</b> {decision_data['usd_balance']:.2f} USD\n\n"
     
-    message += "📊 <b>CURRENT OPTION (Manual Transfer Now):</b>\n"
-    message += f"   • PayPal Rate (est.): {decision_data['current_rate']:.2f} EGP/GBP\n"
-    message += f"   • Base Rate: {decision_data['base_current_rate']:.2f} EGP/GBP\n"
-    message += f"   • You'll receive: {decision_data['current_value_egp']:.2f} EGP\n"
-    message += f"   • Tax (manual): -{decision_data['manual_tax']:.2f} EGP\n"
-    message += f"   • <b>Net amount: {decision_data['current_value_after_tax']:.2f} EGP</b>\n\n"
+    message += "📊 <b>CURRENT OPTION (Manual Withdrawal Now):</b>\n"
+    message += f"   • Manual fee: {decision_data['manual_fee_pct']*100:.2f}%\n"
+    message += f"   • Fee amount: -{decision_data['manual_fee_amount']:.2f} USD\n"
+    message += f"   • <b>Net amount: {decision_data['manual_net_amount']:.2f} USD</b>\n\n"
     message += "📅 <b>AUTO-TRANSFER OPTION (Wait until {})</b>:\n".format(decision_data['next_transfer_date'])
-    message += f"   • PayPal Est. Rate: {decision_data['estimated_future_rate']:.2f} EGP/GBP\n"
-    message += f"   • Base Est. Rate: {decision_data['base_estimated_future_rate']:.2f} EGP/GBP\n"
-    message += f"   • Tax: 0 EGP (no tax on auto-transfer)\n"
-    message += f"   • <b>Net amount: {decision_data['future_value_after_tax']:.2f} EGP</b>\n\n"
+    message += f"   • Auto fee: {decision_data['auto_fee_pct']*100:.2f}%\n"
+    message += f"   • Fee amount: -{decision_data['auto_fee_amount']:.2f} USD\n"
+    message += f"   • <b>Net amount: {decision_data['auto_net_amount']:.2f} USD</b>\n\n"
     
     message += "💡 <b>DECISION:</b>\n"
     message += f"   {decision_data['reason']}\n\n"
     
     if decision_data['difference'] > 0:
-        message += f"   ✅ <b>Manual transfer is BETTER by {decision_data['difference']:.2f} EGP</b>\n"
+        message += f"   ✅ <b>Manual withdrawal is BETTER by {decision_data['difference']:.2f} USD</b>\n"
     elif decision_data['difference'] < 0:
-        message += f"   ⏳ <b>Auto-transfer is BETTER by {abs(decision_data['difference']):.2f} EGP</b>\n"
+        message += f"   ⏳ <b>Auto-transfer is BETTER by {abs(decision_data['difference']):.2f} USD</b>\n"
     else:
-        message += f"   🤷 <b>Difference is minimal ({decision_data['difference']:.2f} EGP)</b>\n"
+        message += f"   🤷 <b>Difference is minimal ({decision_data['difference']:.2f} USD)</b>\n"
     
     message += f"\n📆 <b>Days until auto-transfer:</b> {decision_data['days_until_auto']} days\n\n"
     
-    message += "⚠️ <b>Note:</b> Future rate is an estimate based on recent trends.\n"
-    message += f"PayPal base spread: {decision_data['paypal_spread_pct']*100:.2f}%\n"
-    message += f"Safety buffer: {decision_data['paypal_safety_buffer_pct']*100:.2f}%\n"
-    message += f"Effective spread used: {decision_data['effective_paypal_spread_pct']*100:.2f}%\n"
-    message += "Actual rate on transfer day may vary."
+    message += "⚠️ <b>Note:</b> Manual withdrawal now uses a 3% fee by default.\n"
+    message += "Auto-transfer is assumed to have no additional withdrawal fee."
     
     return message
 
 
-def check_paypal_transfer(gbp_amount, send_to_telegram=True):
+def check_paypal_transfer(usd_amount, send_to_telegram=True):
     """
     Check PayPal transfer decision and optionally send to Telegram
     
     Args:
-        gbp_amount (float): GBP amount to check
+        usd_amount (float): USD amount to check
         send_to_telegram (bool): Whether to send result to Telegram
         
     Returns:
         dict with decision data, or None if error
     """
-    decision = calculate_paypal_transfer(gbp_amount)
+    decision = calculate_paypal_transfer(usd_amount)
     
     if not decision:
         if send_to_telegram:
-            send_telegram_message("❌ Error: Could not calculate transfer decision. Check GBP rate availability.")
+            send_telegram_message("❌ Error: Could not calculate withdrawal decision. Check USD amount.")
         return None
     
     message = format_paypal_transfer_message(decision)
