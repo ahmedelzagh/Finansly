@@ -56,7 +56,7 @@ def forecast_gbp_egp_rate(current_rate, target_date):
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return None
 
-    points = []
+    daily_points = {}
     for entry in history.get("gbp", []):
         try:
             timestamp = datetime.strptime(entry["timestamp"], "%Y-%m-%d %H:%M:%S")
@@ -64,9 +64,12 @@ def forecast_gbp_egp_rate(current_rate, target_date):
         except (KeyError, TypeError, ValueError):
             continue
         if rate > 0:
-            points.append((timestamp, rate))
+            day = timestamp.date()
+            previous_point = daily_points.get(day)
+            if previous_point is None or timestamp > previous_point[0]:
+                daily_points[day] = (timestamp, rate)
 
-    points = points[-FORECAST_LOOKBACK_POINTS:]
+    points = sorted(daily_points.values())[-FORECAST_LOOKBACK_POINTS:]
     if len(points) < FORECAST_MIN_POINTS:
         return None
 
@@ -223,7 +226,7 @@ def format_paypal_transfer_message(decision_data):
     
     message += f"\n📆 <b>Days until auto-transfer:</b> {decision_data['days_until_auto']} days\n"
     if decision_data['forecast_available']:
-        message += f"📈 Forecast uses {decision_data['forecast_history_points']} recent GBP/EGP observations.\n\n"
+        message += f"📈 Forecast uses {decision_data['forecast_history_points']} recent GBP/EGP daily observations.\n\n"
     else:
         message += "\n"
     
