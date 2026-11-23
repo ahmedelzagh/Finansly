@@ -74,6 +74,10 @@ Finansly is a Python-based financial summary tool that helps users track their w
 
 4. The application will fetch the latest gold price and USD to EGP exchange rate, calculate the total values, and display the financial summary.
 
+### S&P 500 tracking
+
+The dashboard can track an S&P 500 investment using fractional units. It fetches the latest `SPY` ETF price from Nasdaq as an investable S&P 500 proxy, recalculates the current USD value automatically, and converts it to EGP. Enter the current nsave value once to establish units, or enter units directly. `SPY` may differ slightly from nsave's specific S&P 500 fund because of fees, currency conversion, and tracking differences.
+
 5. The financial summary will be saved to an Excel file named `financial_summary.xlsx` in the project directory.
 
 ## Telegram Features

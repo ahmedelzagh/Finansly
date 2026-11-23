@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from datetime import time as dt_time, timedelta
-from financial_utils import get_gold_price, get_official_usd_rate, get_gbp_rate, save_to_excel, get_last_holdings
+from financial_utils import get_gold_price, get_official_usd_rate, get_sp500_price, get_gbp_rate, save_to_excel, get_last_holdings
 from telegram_utils import send_telegram_message, format_price_alert
 from trading_strategy import get_trading_signal, find_support_resistance
 
@@ -541,9 +541,15 @@ def _save_daily_wealth_snapshot(now_local, gold_price_24k, gold_price_21k, usd_r
     gold_24k = holdings.get("gold_24k") or 0
     gold_21k = holdings.get("gold_21k") or 0
     usd_balance = holdings.get("usd_balance") or 0
-    
+    stock_cost_usd = holdings.get("stock_cost_usd") or 0
+    stock_value_usd = holdings.get("stock_value_usd") or 0
+    stock_units = holdings.get("stock_units") or 0
+    stock_price = get_sp500_price() if stock_units else holdings.get("stock_price") or 0
+    if stock_units and stock_price:
+        stock_value_usd = round(stock_units * stock_price, 2)
+
     # Skip if no holdings found
-    if gold_24k == 0 and gold_21k == 0 and usd_balance == 0:
+    if gold_24k == 0 and gold_21k == 0 and usd_balance == 0 and stock_value_usd == 0:
         print("Skipping wealth snapshot: no holdings found")
         return None
     
@@ -552,7 +558,8 @@ def _save_daily_wealth_snapshot(now_local, gold_price_24k, gold_price_21k, usd_r
     gold_value_21k = round(gold_21k * (gold_price_21k or gold_price_24k * 21/24), 2) if gold_21k else 0
     total_gold_value = round(gold_value_24k + gold_value_21k, 2)
     total_usd_value = round(usd_balance * usd_rate, 2) if usd_balance else 0
-    total_wealth = round(total_gold_value + total_usd_value, 2)
+    stock_value_egp = round(stock_value_usd * usd_rate, 2) if stock_value_usd else 0
+    total_wealth = round(total_gold_value + total_usd_value + stock_value_egp, 2)
     
     timestamp = now_local.strftime("%Y-%m-%d %H:%M:%S")
     
@@ -566,7 +573,12 @@ def _save_daily_wealth_snapshot(now_local, gold_price_24k, gold_price_21k, usd_r
         official_usd_rate=usd_rate,
         total_gold_value_egp=total_gold_value,
         total_usd_value_egp=total_usd_value,
-        total_wealth_egp=total_wealth
+        total_wealth_egp=total_wealth,
+        stock_cost_usd=stock_cost_usd,
+        stock_value_usd=stock_value_usd,
+        stock_value_egp=stock_value_egp,
+        stock_units=stock_units,
+        stock_price=stock_price
     )
     print(f"Auto-saved daily wealth snapshot: {total_wealth} EGP")
     

@@ -14,6 +14,7 @@ GOLD_API_URL = "https://www.goldapi.io/api/XAU/EGP"
 CB_EGP_USD_URL = "https://api.exchangerate-api.com/v4/latest/USD"  # Central Bank Rate
 CB_EGP_GBP_URL = "https://api.exchangerate-api.com/v4/latest/GBP"  # GBP to EGP Rate
 CB_GBP_USD_URL = "https://api.exchangerate-api.com/v4/latest/GBP"  # GBP to USD Rate
+NASDAQ_QUOTE_URL = "https://api.nasdaq.com/api/quote/{ticker}/info?assetclass=etf"
 
 # Constants
 TROY_OUNCE_TO_GRAM = 31.1035  # 1 Troy Ounce = 31.1035 grams
@@ -29,8 +30,13 @@ COL_OFFICIAL_USD_RATE = "Official USD Rate"
 COL_TOTAL_GOLD_VALUE = "Total Gold Value (EGP)"
 COL_TOTAL_USD_VALUE = "Total USD Value (EGP)"
 COL_TOTAL_WEALTH = "Total Wealth (EGP)"
+COL_STOCK_COST = "Stock Cost Basis (USD)"
+COL_STOCK_VALUE = "Stock Current Value (USD)"
+COL_STOCK_VALUE_EGP = "Total Stock Value (EGP)"
+COL_STOCK_UNITS = "S&P 500 Units"
+COL_STOCK_PRICE = "S&P 500 Price (USD)"
 
-# Format headers (10 columns)
+# Format headers (15 columns)
 NEW_FORMAT_HEADERS = [
     COL_TIMESTAMP,
     COL_GOLD_24K_HOLDINGS,
@@ -41,8 +47,28 @@ NEW_FORMAT_HEADERS = [
     COL_OFFICIAL_USD_RATE,
     COL_TOTAL_GOLD_VALUE,
     COL_TOTAL_USD_VALUE,
-    COL_TOTAL_WEALTH
+    COL_TOTAL_WEALTH,
+    COL_STOCK_COST,
+    COL_STOCK_VALUE,
+    COL_STOCK_VALUE_EGP,
+    COL_STOCK_UNITS,
+    COL_STOCK_PRICE
 ]
+
+
+def get_sp500_price():
+    """Return the latest SPY ETF price as an S&P 500 investment proxy."""
+    try:
+        response = requests.get(
+            NASDAQ_QUOTE_URL.format(ticker="SPY"),
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=10,
+        )
+        response.raise_for_status()
+        price = response.json().get("data", {}).get("primaryData", {}).get("lastSalePrice", "")
+        return round(float(str(price).replace("$", "").replace(",", "")), 2)
+    except (requests.exceptions.RequestException, TypeError, ValueError, AttributeError):
+        return None
 
 # Function to fetch gold prices in EGP per gram (both 24k and 21k)
 def _parse_gold_api_keys():
@@ -173,21 +199,32 @@ def get_gbp_rate():
         return None
 
 # Function to save data to Excel
-def save_to_excel(timestamp, gold_holdings_24k, gold_holdings_21k, usd_balance, gold_price_24k, gold_price_21k, official_usd_rate, total_gold_value_egp, total_usd_value_egp, total_wealth_egp):
-    """
-    Saves financial data to Excel file (10 columns).
-    """
+def save_to_excel(timestamp, gold_holdings_24k, gold_holdings_21k, usd_balance, gold_price_24k, gold_price_21k, official_usd_rate, total_gold_value_egp, total_usd_value_egp, total_wealth_egp, stock_cost_usd=0, stock_value_usd=0, stock_value_egp=0, stock_units=0, stock_price=0):
+    """Saves a financial snapshot to Excel while preserving older column formats."""
     file_path = "financial_summary.xlsx"
-    
+
     if os.path.exists(file_path):
         workbook = load_workbook(file_path)
         sheet = workbook.active
+        existing_headers = [cell.value for cell in sheet[1]]
+
+        if existing_headers != NEW_FORMAT_HEADERS:
+            for header in NEW_FORMAT_HEADERS:
+                if header not in existing_headers:
+                    existing_headers.append(header)
+                    for row_number in range(1, sheet.max_row + 1):
+                        sheet.cell(row=row_number, column=len(existing_headers), value=header if row_number == 1 else None)
+            for col_index, header in enumerate(NEW_FORMAT_HEADERS, start=1):
+                source_index = existing_headers.index(header) + 1
+                if source_index != col_index:
+                    for row_number in range(1, sheet.max_row + 1):
+                        sheet.cell(row=row_number, column=col_index, value=sheet.cell(row=row_number, column=source_index).value)
+            sheet.delete_cols(len(NEW_FORMAT_HEADERS) + 1, max(0, sheet.max_column - len(NEW_FORMAT_HEADERS)))
     else:
         workbook = Workbook()
         sheet = workbook.active
         sheet.append(NEW_FORMAT_HEADERS)
 
-    # Append new row with all 10 columns
     sheet.append([
         timestamp,
         gold_holdings_24k if gold_holdings_24k is not None else None,
@@ -198,7 +235,12 @@ def save_to_excel(timestamp, gold_holdings_24k, gold_holdings_21k, usd_balance, 
         official_usd_rate,
         total_gold_value_egp,
         total_usd_value_egp,
-        total_wealth_egp
+        total_wealth_egp,
+        stock_cost_usd,
+        stock_value_usd,
+        stock_value_egp,
+        stock_units,
+        stock_price
     ])
     workbook.save(file_path)
 
@@ -223,6 +265,11 @@ def get_last_holdings(file_path="financial_summary.xlsx"):
         "total_gold_value_egp": None,
         "total_usd_value_egp": None,
         "total_wealth_egp": None,
+        "stock_cost_usd": None,
+        "stock_value_usd": None,
+        "stock_value_egp": None,
+        "stock_units": None,
+        "stock_price": None,
     }
 
     if not os.path.exists(file_path):
@@ -233,7 +280,7 @@ def get_last_holdings(file_path="financial_summary.xlsx"):
         sheet = workbook.active
         
         existing_headers = [cell.value for cell in sheet[1]]
-        headers = existing_headers if len(existing_headers) == 10 else NEW_FORMAT_HEADERS
+        headers = existing_headers if len(existing_headers) >= 10 else NEW_FORMAT_HEADERS
 
         # Find the last non-empty row
         last_row = None
@@ -260,6 +307,11 @@ def get_last_holdings(file_path="financial_summary.xlsx"):
             "total_gold_value_egp": _get(get_column_index(headers, COL_TOTAL_GOLD_VALUE)),
             "total_usd_value_egp": _get(get_column_index(headers, COL_TOTAL_USD_VALUE)),
             "total_wealth_egp": _get(get_column_index(headers, COL_TOTAL_WEALTH)),
+            "stock_cost_usd": _get(get_column_index(headers, COL_STOCK_COST)),
+            "stock_value_usd": _get(get_column_index(headers, COL_STOCK_VALUE)),
+            "stock_value_egp": _get(get_column_index(headers, COL_STOCK_VALUE_EGP)),
+            "stock_units": _get(get_column_index(headers, COL_STOCK_UNITS)),
+            "stock_price": _get(get_column_index(headers, COL_STOCK_PRICE)),
         }
     except Exception as e:
         print(f"Error reading last holdings: {e}")
@@ -270,17 +322,14 @@ def get_last_holdings(file_path="financial_summary.xlsx"):
 def normalize_row_to_new_format(row, headers):
     """
     Converts a row to a dictionary with column names as keys.
-    All rows should have 10 columns.
+    All rows should have the current 13-column format.
     """
-    if len(row) == 10:
+    if len(row) == len(NEW_FORMAT_HEADERS):
         return dict(zip(headers, row))
-    elif len(row) < 10:
-        # Fallback for any edge cases: pad with None
-        padded_row = list(row) + [None] * (10 - len(row))
+    if len(row) < len(NEW_FORMAT_HEADERS):
+        padded_row = list(row) + [None] * (len(NEW_FORMAT_HEADERS) - len(row))
         return dict(zip(headers, padded_row))
-    else:
-        # Row has more than expected columns, return as dictionary
-        return dict(zip(headers, row))
+    return dict(zip(headers, row))
 
 # Function to get column index by name
 def get_column_index(headers, column_name):
