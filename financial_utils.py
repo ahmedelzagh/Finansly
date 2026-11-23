@@ -15,6 +15,7 @@ CB_EGP_USD_URL = "https://api.exchangerate-api.com/v4/latest/USD"  # Central Ban
 CB_EGP_GBP_URL = "https://api.exchangerate-api.com/v4/latest/GBP"  # GBP to EGP Rate
 CB_GBP_USD_URL = "https://api.exchangerate-api.com/v4/latest/GBP"  # GBP to USD Rate
 NASDAQ_QUOTE_URL = "https://api.nasdaq.com/api/quote/{ticker}/info?assetclass=etf"
+SP500_TICKER = os.getenv("SP500_TICKER", "SPUS").upper()
 
 # Constants
 TROY_OUNCE_TO_GRAM = 31.1035  # 1 Troy Ounce = 31.1035 grams
@@ -57,10 +58,10 @@ NEW_FORMAT_HEADERS = [
 
 
 def get_sp500_price():
-    """Return the latest SPY ETF price as an S&P 500 investment proxy."""
+    """Return the latest configured S&P 500 ETF price, defaulting to SPUS."""
     try:
         response = requests.get(
-            NASDAQ_QUOTE_URL.format(ticker="SPY"),
+            NASDAQ_QUOTE_URL.format(ticker=SP500_TICKER),
             headers={"User-Agent": "Mozilla/5.0"},
             timeout=10,
         )
