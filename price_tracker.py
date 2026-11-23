@@ -228,6 +228,12 @@ def _format_daily_summary_message(now_local, gold_price_24k, usd_rate, gbp_rate,
 
     # Wealth snapshot
     if wealth_data:
+        if wealth_data.get("stock_value_usd"):
+            stock_change = wealth_data.get("stock_value_usd", 0) - wealth_data.get("stock_cost_usd", 0)
+            lines.append(
+                f"📈 <b>S&amp;P 500:</b> ${wealth_data['stock_value_usd']:,.2f} "
+                f"({stock_change:+,.2f} USD, {wealth_data['stock_value_egp']:,.2f} EGP)"
+            )
         lines.append(f"💎 <b>Total Wealth:</b> {wealth_data['total']:,.2f} EGP")
         lines.append("")
 
@@ -585,6 +591,9 @@ def _save_daily_wealth_snapshot(now_local, gold_price_24k, gold_price_21k, usd_r
     return {
         "gold_value": total_gold_value,
         "usd_value": total_usd_value,
+        "stock_cost_usd": stock_cost_usd,
+        "stock_value_usd": stock_value_usd,
+        "stock_value_egp": stock_value_egp,
         "total": total_wealth
     }
 
