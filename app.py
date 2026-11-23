@@ -20,6 +20,7 @@ from financial_utils import (
     COL_TOTAL_GOLD_VALUE, COL_TOTAL_USD_VALUE, COL_TOTAL_WEALTH,
     COL_STOCK_COST, COL_STOCK_VALUE, COL_STOCK_VALUE_EGP,
     COL_STOCK_UNITS, COL_STOCK_PRICE,
+    SP500_TICKER,
     get_last_holdings
 )
 from price_tracker import (
@@ -354,6 +355,7 @@ def index():
         per_page=per_page,
         total_pages=total_pages,
         total_records=total_records,
+        sp500_ticker=SP500_TICKER,
     )
 
 @app.route("/telegram-webhook", methods=["POST"])
