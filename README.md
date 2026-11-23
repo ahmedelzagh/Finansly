@@ -83,7 +83,7 @@ The dashboard can track an S&P 500 investment using fractional units. It fetches
 ## Telegram Features
 
 ### Price Alerts
-The app fetches prices **up to four times per weekday** at London LBMA-style times (10:30 / 15:00 Europe/London) and US session times (08:35 / 09:35 America/New_York), then sends a **single daily Telegram summary** on **weekdays at 18:05 Africa/Cairo** by default (configure `DAILY_NOTIFICATION_HOUR` / `DAILY_NOTIFICATION_MINUTE` in the environment). That message uses the **latest snapshot from the same day’s polls** (no extra GoldAPI request). The summary includes:
+The app fetches prices **up to four times per weekday** at London LBMA-style times (10:30 / 15:00 Europe/London) and US session times (08:35 / 09:35 America/New_York), then sends a **single daily Telegram summary every day at 18:05 Africa/Cairo** by default (configure `DAILY_NOTIFICATION_HOUR` / `DAILY_NOTIFICATION_MINUTE` in the environment). Weekend summaries refresh prices once because weekday market polls do not run on weekends. The summary includes:
 - Current prices (Gold 24k, USD/EGP, GBP/EGP)
 - Buy/sell signals based on technical analysis:
   - Moving Averages (trend analysis)
