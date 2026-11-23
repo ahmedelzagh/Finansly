@@ -431,6 +431,10 @@
         background: var(--usd-color);
       }
 
+      .legend-dot.stock {
+        background: #7ed957;
+      }
+
       .legend-text {
         font-size: 14px;
         color: var(--text-secondary);
@@ -783,6 +787,13 @@
                   </div>
                   <span class="legend-value" id="usdPercent">—</span>
                 </div>
+                <div class="legend-item">
+                  <div class="legend-label">
+                    <span class="legend-dot stock"></span>
+                    <span class="legend-text">Stock Portfolio</span>
+                  </div>
+                  <span class="legend-value" id="stockPercent">—</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1048,22 +1059,25 @@
 
         const goldValue = latest.gold_value || 0;
         const usdValue = latest.usd_value || 0;
-        const total = goldValue + usdValue;
+        const stockValue = latest.stock_value_egp || 0;
+        const total = goldValue + usdValue + stockValue;
 
         const goldPct = total > 0 ? ((goldValue / total) * 100).toFixed(1) : 0;
         const usdPct = total > 0 ? ((usdValue / total) * 100).toFixed(1) : 0;
+        const stockPct = total > 0 ? ((stockValue / total) * 100).toFixed(1) : 0;
 
         document.getElementById("goldPercent").textContent = goldPct + "%";
         document.getElementById("usdPercent").textContent = usdPct + "%";
+        document.getElementById("stockPercent").textContent = stockPct + "%";
 
         charts.composition = new Chart(ctx, {
           type: "doughnut",
           data: {
-            labels: ["Gold Holdings", "USD Balance"],
+            labels: ["Gold Holdings", "USD Balance", "Stock Portfolio"],
             datasets: [
               {
-                data: [goldValue, usdValue],
-                backgroundColor: ["#FFD700", "#4FC3F7"],
+                data: [goldValue, usdValue, stockValue],
+                backgroundColor: ["#FFD700", "#4FC3F7", "#7ED957"],
                 borderColor: "#161616",
                 borderWidth: 3,
                 hoverOffset: 4,

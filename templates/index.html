@@ -943,6 +943,51 @@
                 <p class="form-hint">Your dollar holdings</p>
               </div>
 
+              <div class="form-group">
+                <label class="form-label" for="stock_cost_usd">Stock Cost Basis</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  id="stock_cost_usd"
+                  name="stock_cost_usd"
+                  class="form-input"
+                  value="{{ session.stock_cost_usd if session.stock_cost_usd is not none else '' }}"
+                  placeholder="0.00"
+                />
+                <p class="form-hint">What you paid in USD</p>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="stock_units">S&amp;P 500 Units</label>
+                <input
+                  type="number"
+                  step="0.000001"
+                  min="0"
+                  id="stock_units"
+                  name="stock_units"
+                  class="form-input"
+                  value="{{ session.stock_units if session.stock_units is not none else '' }}"
+                  placeholder="0.000000"
+                />
+                <p class="form-hint">Your fractional S&amp;P 500 units; live price uses SPY as a proxy</p>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="stock_current_value_usd">Stock Current Value</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  id="stock_current_value_usd"
+                  name="stock_current_value_usd"
+                  class="form-input"
+                  value="{{ session.stock_value_usd if session.stock_value_usd is not none else '' }}"
+                  placeholder="0.00"
+                />
+                <p class="form-hint">Fallback only when units or live pricing is unavailable</p>
+              </div>
+
               <button type="submit" class="btn-primary">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="20 6 9 17 4 12"></polyline>
@@ -955,7 +1000,7 @@
 
         <!-- Summary Section -->
         <div class="summary-section">
-          {% if session.gold_holdings_24k or session.gold_holdings_21k or session.usd_balance %}
+          {% if session.gold_holdings_24k or session.gold_holdings_21k or session.usd_balance or session.stock_value_usd %}
           <!-- Total Wealth Card -->
           <div class="summary-grid">
             <div class="stat-card highlight">
@@ -969,6 +1014,10 @@
             <div class="stat-card">
               <div class="stat-label">USD Value</div>
               <div class="stat-value">{{ session.total_usd_value_egp }}<span class="stat-unit">EGP</span></div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Stock Value</div>
+              <div class="stat-value">{{ session.stock_value_egp or 0 }}<span class="stat-unit">EGP</span></div>
             </div>
           </div>
 
@@ -1000,6 +1049,22 @@
                   <span class="holding-label">USD/EGP Rate</span>
                   <span class="holding-value">{{ session.official_usd_rate }}</span>
                 </div>
+                {% if session.stock_value_usd is not none %}
+                <div class="holding-item">
+                  <span class="holding-label">Stock Portfolio</span>
+                  <span class="holding-value">${{ session.stock_value_usd or 0 }} (cost ${{ session.stock_cost_usd or 0 }})</span>
+                </div>
+                {% if session.stock_price %}
+                <div class="holding-item">
+                  <span class="holding-label">Live S&amp;P 500 Proxy Price</span>
+                  <span class="holding-value">${{ session.stock_price }} (SPY)</span>
+                </div>
+                {% endif %}
+                <div class="holding-item">
+                  <span class="holding-label">Stock Gain/Loss</span>
+                  <span class="holding-value">${{ "%.2f"|format((session.stock_value_usd or 0) - (session.stock_cost_usd or 0)) }}</span>
+                </div>
+                {% endif %}
                 {% if session.gold_price_24k %}
                 <div class="holding-item">
                   <span class="holding-label">Gold 24K Price</span>

@@ -12,12 +12,14 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 import secrets
 from financial_utils import (
-    get_gold_price, get_official_usd_rate, save_to_excel,
+    get_gold_price, get_official_usd_rate, get_sp500_price, save_to_excel,
     normalize_row_to_new_format, get_column_index,
     round_numeric_value, NEW_FORMAT_HEADERS, COL_TIMESTAMP,
     COL_GOLD_24K_HOLDINGS, COL_GOLD_21K_HOLDINGS, COL_USD_BALANCE,
     COL_GOLD_24K_PRICE, COL_GOLD_21K_PRICE, COL_OFFICIAL_USD_RATE,
     COL_TOTAL_GOLD_VALUE, COL_TOTAL_USD_VALUE, COL_TOTAL_WEALTH,
+    COL_STOCK_COST, COL_STOCK_VALUE, COL_STOCK_VALUE_EGP,
+    COL_STOCK_UNITS, COL_STOCK_PRICE,
     get_last_holdings
 )
 from price_tracker import (
@@ -173,11 +175,46 @@ def index():
             except ValueError:
                 return render_template("index.html", error="USD Balance must be a valid number.", csrf_token=get_csrf_token())
 
+            stock_cost_usd = 0.0
+            stock_value_usd = 0.0
+            stock_units = 0.0
+            stock_price = get_sp500_price()
+            if request.form.get("stock_cost_usd"):
+                try:
+                    stock_cost_usd = round(float(request.form["stock_cost_usd"]), 2)
+                    if stock_cost_usd < 0:
+                        raise ValueError
+                except ValueError:
+                    return render_template("index.html", error="Stock cost basis must be a valid non-negative number.", csrf_token=get_csrf_token())
+            if request.form.get("stock_current_value_usd"):
+                try:
+                    stock_value_usd = round(float(request.form["stock_current_value_usd"]), 2)
+                    if stock_value_usd < 0:
+                        raise ValueError
+                except ValueError:
+                    return render_template("index.html", error="Stock current value must be a valid non-negative number.", csrf_token=get_csrf_token())
+            if request.form.get("stock_units"):
+                try:
+                    stock_units = round(float(request.form["stock_units"]), 6)
+                    if stock_units < 0:
+                        raise ValueError
+                except ValueError:
+                    return render_template("index.html", error="S&P 500 units must be a valid non-negative number.", csrf_token=get_csrf_token())
+
+            if stock_units and stock_price:
+                stock_value_usd = round(stock_units * stock_price, 2)
+            elif stock_value_usd and stock_price:
+                stock_units = round(stock_value_usd / stock_price, 6)
+
             # Fetch both 24k and 21k gold prices
             gold_price_24k, gold_price_21k = get_gold_price()
             official_usd_rate = get_official_usd_rate()
+            total_gold_value_egp = 0.0
+            total_usd_value_egp = 0.0
+            stock_value_egp = 0.0
+            total_wealth_egp = 0.0
 
-            if (gold_price_24k or gold_price_21k) and official_usd_rate:
+            if official_usd_rate:
                 # Calculate total gold value by combining both 24k and 21k holdings
                 total_gold_value_egp = 0.0
                 if gold_holdings_24k and gold_price_24k:
@@ -188,13 +225,16 @@ def index():
                 total_gold_value_egp = round(total_gold_value_egp, 2)
                 
                 total_usd_value_egp = round(usd_balance * official_usd_rate, 2)
-                total_wealth_egp = round(total_gold_value_egp + total_usd_value_egp, 2)
+                stock_value_egp = round(stock_value_usd * official_usd_rate, 2)
+                total_wealth_egp = round(total_gold_value_egp + total_usd_value_egp + stock_value_egp, 2)
 
             current_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             save_to_excel(
                 current_timestamp, gold_holdings_24k, gold_holdings_21k, usd_balance,
                 gold_price_24k, gold_price_21k, official_usd_rate,
-                total_gold_value_egp, total_usd_value_egp, total_wealth_egp
+                total_gold_value_egp, total_usd_value_egp, total_wealth_egp,
+                stock_cost_usd, stock_value_usd, stock_value_egp,
+                stock_units, stock_price
             )
 
             # Store in session
@@ -207,6 +247,11 @@ def index():
             session["total_gold_value_egp"] = total_gold_value_egp
             session["total_usd_value_egp"] = total_usd_value_egp
             session["total_wealth_egp"] = total_wealth_egp
+            session["stock_cost_usd"] = stock_cost_usd
+            session["stock_value_usd"] = stock_value_usd
+            session["stock_value_egp"] = stock_value_egp
+            session["stock_units"] = stock_units
+            session["stock_price"] = stock_price
 
             return redirect(url_for("index"))
         except Exception as e:
@@ -224,7 +269,7 @@ def index():
         existing_headers = [cell.value for cell in sheet[1]]
         
         # Use existing headers or default to NEW_FORMAT_HEADERS
-        headers = existing_headers if len(existing_headers) == 10 else NEW_FORMAT_HEADERS
+        headers = existing_headers if len(existing_headers) >= 10 else NEW_FORMAT_HEADERS
         
         # Get timestamp column index by name
         timestamp_col_index = get_column_index(headers, COL_TIMESTAMP)
@@ -281,6 +326,24 @@ def index():
     session["total_gold_value_egp"] = last.get("total_gold_value_egp")
     session["total_usd_value_egp"] = last.get("total_usd_value_egp")
     session["total_wealth_egp"] = last.get("total_wealth_egp")
+    session["stock_cost_usd"] = last.get("stock_cost_usd")
+    session["stock_value_usd"] = last.get("stock_value_usd")
+    session["stock_value_egp"] = last.get("stock_value_egp")
+    session["stock_units"] = last.get("stock_units")
+    session["stock_price"] = last.get("stock_price")
+
+    live_stock_price = get_sp500_price() if last.get("stock_units") else None
+    if live_stock_price and last.get("stock_units"):
+        session["stock_price"] = live_stock_price
+        session["stock_value_usd"] = round(last["stock_units"] * live_stock_price, 2)
+        if session.get("official_usd_rate"):
+            session["stock_value_egp"] = round(session["stock_value_usd"] * session["official_usd_rate"], 2)
+            session["total_wealth_egp"] = round(
+                (session.get("total_gold_value_egp") or 0)
+                + (session.get("total_usd_value_egp") or 0)
+                + session["stock_value_egp"],
+                2,
+            )
 
     return render_template(
         "index.html",
@@ -339,6 +402,11 @@ def api_analytics():
             gold_value_idx = get_column_index(headers, COL_TOTAL_GOLD_VALUE)
             usd_value_idx = get_column_index(headers, COL_TOTAL_USD_VALUE)
             total_wealth_idx = get_column_index(headers, COL_TOTAL_WEALTH)
+            stock_cost_idx = get_column_index(headers, COL_STOCK_COST)
+            stock_value_idx = get_column_index(headers, COL_STOCK_VALUE)
+            stock_value_egp_idx = get_column_index(headers, COL_STOCK_VALUE_EGP)
+            stock_units_idx = get_column_index(headers, COL_STOCK_UNITS)
+            stock_price_idx = get_column_index(headers, COL_STOCK_PRICE)
             
             for row in sheet.iter_rows(min_row=2, values_only=True):
                 if row and any(cell is not None for cell in row):
@@ -353,8 +421,28 @@ def api_analytics():
                         'gold_value': row[gold_value_idx] if gold_value_idx is not None else None,
                         'usd_value': row[usd_value_idx] if usd_value_idx is not None else None,
                         'total_wealth': row[total_wealth_idx] if total_wealth_idx is not None else None,
+                        'stock_cost_usd': row[stock_cost_idx] if stock_cost_idx is not None else None,
+                        'stock_value_usd': row[stock_value_idx] if stock_value_idx is not None else None,
+                        'stock_value_egp': row[stock_value_egp_idx] if stock_value_egp_idx is not None else None,
+                        'stock_units': row[stock_units_idx] if stock_units_idx is not None else None,
+                        'stock_price': row[stock_price_idx] if stock_price_idx is not None else None,
                     }
                     data.append(entry)
+
+            if data:
+                latest = data[-1]
+                live_stock_price = get_sp500_price() if latest.get("stock_units") else None
+                if live_stock_price and latest.get("stock_units"):
+                    latest["stock_price"] = live_stock_price
+                    latest["stock_value_usd"] = round(latest["stock_units"] * live_stock_price, 2)
+                    usd_rate = latest.get("usd_rate") or 0
+                    latest["stock_value_egp"] = round(latest["stock_value_usd"] * usd_rate, 2)
+                    latest["total_wealth"] = round(
+                        (latest.get("gold_value") or 0)
+                        + (latest.get("usd_value") or 0)
+                        + latest["stock_value_egp"],
+                        2,
+                    )
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
