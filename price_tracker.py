@@ -155,7 +155,7 @@ def _update_digest_cache(
 
 
 def next_daily_digest_utc(after_utc: datetime) -> datetime:
-    """Next weekday digest time in DAILY_TIMEZONE, strictly after ``after_utc`` (UTC)."""
+    """Next daily digest time in DAILY_TIMEZONE, strictly after ``after_utc`` (UTC)."""
     after_utc = after_utc.astimezone(UTC)
     zone = ZoneInfo(DAILY_TIMEZONE)
     z_after = after_utc.astimezone(zone)
@@ -163,7 +163,7 @@ def next_daily_digest_utc(after_utc: datetime) -> datetime:
     cutoff_t = dt_time(DAILY_NOTIFICATION_HOUR, DAILY_NOTIFICATION_MINUTE)
     for _ in range(14):
         local_dt = datetime.combine(d, cutoff_t, tzinfo=zone)
-        if local_dt > z_after and local_dt.weekday() < 5:
+        if local_dt > z_after:
             return local_dt.astimezone(UTC)
         d += timedelta(days=1)
     raise RuntimeError("Could not find next daily digest slot within 14 days")
@@ -171,8 +171,8 @@ def next_daily_digest_utc(after_utc: datetime) -> datetime:
 
 def send_daily_digest_from_cache_if_due():
     """
-    Send the daily Telegram summary using data from the latest weekday poll (same Cairo date).
-    Does not call GoldAPI; runs at the scheduled digest time (see next_daily_digest_utc).
+    Send the daily Telegram summary using data from the latest poll on the same Cairo date.
+    Weekend digests refresh the cache because weekday market polls do not run on weekends.
     """
     now_local = datetime.now(ZoneInfo(DAILY_TIMEZONE))
     if not should_send_daily_notification(now_local):
@@ -181,11 +181,14 @@ def send_daily_digest_from_cache_if_due():
     today = now_local.strftime("%Y-%m-%d")
     cache = _LAST_DIGEST_CACHE
     if not cache or cache.get("snapshot_date") != today:
-        print(
-            f"[DailySummary] skip digest: need snapshot for {today}, "
-            f"have {cache.get('snapshot_date') if cache else 'empty'}"
-        )
-        return
+        check_all_prices()
+        cache = _LAST_DIGEST_CACHE
+        if not cache or cache.get("snapshot_date") != today:
+            print(
+                f"[DailySummary] skip digest: need snapshot for {today}, "
+                f"have {cache.get('snapshot_date') if cache else 'empty'}"
+            )
+            return
 
     gold_24k = cache.get("gold_24k")
     gold_21k = cache.get("gold_21k")
